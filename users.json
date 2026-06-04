@@ -1,0 +1,33 @@
+{"users": [
+{
+  "localId": "JnstuZa6BySLZAQVPMaa9I89G4H2",
+  "email": "demo@fschat.com",
+  "emailVerified": false,
+  "passwordHash": "/jQaeGKO3ClmxC2X2Yj2d2aZjnz8Weawcmv+3v24bNNxwSo6BZq5Y3N31b4LSM0P9HKmm/6vdYPD1ZZicT1vhQ==",
+  "salt": "+Xdr6mElwxHy2w==",
+  "lastSignedInAt": "1780472181658",
+  "createdAt": "1780463992797",
+  "providerUserInfo": []
+},
+{
+  "localId": "i6f4N2sjALY0J3l5b6a374yns3r2",
+  "email": "mwendeashley920@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "YIBDCFfZFk6SLiOamL8eqIjkvtLT7tmKBNmyb0I9PKUzPB3PxtChgNy11B/bvVOXsZx2oJ78SV63bUzKV1/fbw==",
+  "salt": "O7KCfzocj8p19Q==",
+  "displayName": "Ashley Mwende",
+  "lastSignedInAt": "1780462375463",
+  "createdAt": "1780462375463",
+  "providerUserInfo": []
+},
+{
+  "localId": "kIFLD4LwJ3Sti6koLUvt78b76Pu2",
+  "email": "lewisirungu489@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "9ahphGC2QXXybTBARo5mw1lR7aD2kPPXDYKvzJ7IxFUHZdOCo+NexRCcIcouqvHRYUo2ndBMMo4nkUvAwMjV0w==",
+  "salt": "LhAo3GPe+FphaA==",
+  "displayName": "Lewis irungu",
+  "lastSignedInAt": "1780462726745",
+  "createdAt": "1780409433763",
+  "providerUserInfo": []
+}]}

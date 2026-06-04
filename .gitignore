@@ -1,0 +1,37 @@
+# Flutter
+build/
+.dart_tool/
+.packages
+.pub/
+pubspec.lock
+*.iml
+.idea/
+.vscode/
+*.lock
+
+# Android
+android/.gradle/
+android/app/build/
+local.properties
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Firebase
+firebase.json
+functions/.env
+functions/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.key
+*.keystore
+google-services.json
+GoogleService-Info.plist
+service_account.json

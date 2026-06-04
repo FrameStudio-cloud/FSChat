@@ -1,0 +1,4 @@
+#import Generated.xcconfig (look for it in the Flutter generated directory)
+
+echo "Missing Generated.xcconfig" >&2
+exit 1
