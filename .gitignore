@@ -35,3 +35,6 @@ Thumbs.db
 google-services.json
 GoogleService-Info.plist
 service_account.json
+
+# Flutter logs
+flutter_*.log
