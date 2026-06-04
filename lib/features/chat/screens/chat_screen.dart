@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:uuid/uuid.dart';
-import '../providers/auth_provider.dart';
-import '../models/user_model.dart';
-import '../services/database_service.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../auth/models/user_model.dart';
+import '../../../core/services/database_service.dart';
+import '../../../shared/models/menu_action.dart';
+import '../models/message_model.dart';
 import '../widgets/message_bubble.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -33,6 +36,27 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _recordingReady = false;
   bool _isUploading = false;
   final Stopwatch _recordStopwatch = Stopwatch();
+  Message? _replyingTo;
+  String? _mentionQuery;
+  List<ChatUser> _mentionUsers = [];
+  StreamSubscription<List<ChatUser>>? _mentionSubscription;
+  String? _currentUid;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController.addListener(_onTextChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uid = context.read<AuthProvider>().user!.uid;
+      _currentUid = uid;
+      _db.allUsers(uid).first.then((users) {
+        if (mounted) setState(() => _mentionUsers = users);
+      });
+      _mentionSubscription = _db.allUsers(uid).listen((users) {
+        if (mounted) setState(() => _mentionUsers = users);
+      });
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -45,12 +69,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _textController.addListener(_onTextChanged);
-  }
-
-  @override
   void dispose() {
     _typingTimer?.cancel();
     _db.setTyping(chatId, otherUid, false);
@@ -58,11 +76,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.dispose();
     _scrollController.dispose();
     _audioRecorder.dispose();
+    _mentionSubscription?.cancel();
     super.dispose();
   }
 
   void _onTextChanged() {
-    final hasText = _textController.text.trim().isNotEmpty;
+    final text = _textController.text;
+    final sel = _textController.selection;
+    final cursorPos = sel.isValid ? sel.baseOffset : text.length;
+    final hasText = text.trim().isNotEmpty;
     final uid = context.read<AuthProvider>().user!.uid;
     _db.setTyping(chatId, uid, hasText);
 
@@ -72,6 +94,20 @@ class _ChatScreenState extends State<ChatScreen> {
         _db.setTyping(chatId, uid, false);
       });
     }
+
+    final hasAt = text.contains('@');
+    if (hasAt && cursorPos > 0) {
+      final before = text.substring(0, cursorPos);
+      final atIdx = before.lastIndexOf('@');
+      if (atIdx >= 0 && (atIdx == 0 || before[atIdx - 1] == ' ')) {
+        final afterAt = before.substring(atIdx);
+        if (!afterAt.contains(' ')) {
+          if (_mentionQuery == null) setState(() => _mentionQuery = '');
+          return;
+        }
+      }
+    }
+    if (_mentionQuery != null) setState(() => _mentionQuery = null);
   }
 
   Future<void> _sendMessage() async {
@@ -82,8 +118,19 @@ class _ChatScreenState extends State<ChatScreen> {
     final uid = context.read<AuthProvider>().user!.uid;
     await _db.setTyping(chatId, uid, false);
     try {
-      await _db.sendMessage(chatId: chatId, senderId: uid, text: text);
+      await _db.sendMessage(
+        chatId: chatId,
+        senderId: uid,
+        text: text,
+        replyToId: _replyingTo?.id,
+        replyToText: _replyingTo?.text.isNotEmpty == true
+            ? _replyingTo!.text
+            : _replyingTo?.type == 'image'
+                ? '📷 Photo'
+                : '🎤 Voice message',
+      );
       _textController.clear();
+      setState(() => _replyingTo = null);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -91,6 +138,187 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     }
+  }
+
+  Widget _buildReplyPreview() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF0F0F0),
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFF075E54),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Reply',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF075E54),
+                  ),
+                ),
+                Text(
+                  _replyingTo?.text.isNotEmpty == true
+                      ? _replyingTo!.text
+                      : _replyingTo?.type == 'image'
+                          ? '📷 Photo'
+                          : '🎤 Voice message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey[300] : Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () => setState(() => _replyingTo = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMessageMenu(Message msg, Offset pos) {
+    final uid = context.read<AuthProvider>().user!.uid;
+    final isOwn = msg.senderId == uid;
+
+    final actions = [
+      if (msg.type == 'text')
+        MenuAction(
+          label: 'Copy',
+          icon: Icons.copy_rounded,
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: msg.text));
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Copied'), duration: Duration(seconds: 1)),
+              );
+            }
+          },
+        ),
+      if (isOwn)
+        MenuAction(
+          label: 'Delete',
+          icon: Icons.delete_rounded,
+          isDestructive: true,
+          onTap: () => _deleteMessage(msg.id),
+        ),
+    ];
+
+    if (actions.isEmpty) return;
+
+    final items = actions
+        .map((a) => PopupMenuItem<int>(
+              value: actions.indexOf(a),
+              child: ListTile(
+                dense: true,
+                leading:
+                    Icon(a.icon, color: a.isDestructive ? Colors.red : null),
+                title: Text(a.label,
+                    style: a.isDestructive
+                        ? const TextStyle(color: Colors.red)
+                        : null),
+              ),
+            ))
+        .toList();
+
+    showMenu<int>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
+      items: items,
+    ).then((index) {
+      if (index != null) actions[index].onTap();
+    });
+  }
+
+  void _insertMention(ChatUser user) {
+    final text = _textController.text;
+    final atIdx = text.lastIndexOf('@');
+    if (atIdx < 0) {
+      setState(() => _mentionQuery = null);
+      return;
+    }
+    int endIdx = atIdx + 1;
+    while (endIdx < text.length && text[endIdx] != ' ') {
+      endIdx++;
+    }
+    final newText =
+        '${text.substring(0, atIdx)}@${user.name} ${text.substring(endIdx)}';
+    final newCursor = atIdx + user.name.length + 2;
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
+  Widget _buildMentionSuggestions() {
+    if (_mentionQuery == null) return const SizedBox();
+    final filtered = _mentionUsers.where((u) => u.uid != _currentUid).toList();
+    if (filtered.isEmpty) return const SizedBox();
+    final maxHeight =
+        MediaQuery.of(context).viewInsets.bottom > 0 ? 120.0 : 180.0;
+    return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF2D2D2D)
+            : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 6,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: filtered.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+        itemBuilder: (_, i) {
+          final user = filtered[i];
+          return ListTile(
+            dense: true,
+            leading: CircleAvatar(
+              radius: 16,
+              backgroundColor: const Color(0xFF075E54),
+              backgroundImage:
+                  user.photoUrl.isNotEmpty ? NetworkImage(user.photoUrl) : null,
+              child: user.photoUrl.isEmpty
+                  ? Text(user.name[0].toUpperCase(),
+                      style: const TextStyle(fontSize: 12, color: Colors.white))
+                  : null,
+            ),
+            title: Text(user.name,
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : Colors.black87,
+                )),
+            onTap: () => _insertMention(user),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _deleteMessage(String msgId) async {
@@ -413,9 +641,14 @@ class _ChatScreenState extends State<ChatScreen> {
               otherUser: _otherUser,
               currentUid: currentUid,
               scrollController: _scrollController,
-              onDeleteMessage: _deleteMessage,
+              onMessageMenu: _showMessageMenu,
+              onSwipeReply: (msg) {
+                setState(() => _replyingTo = msg);
+              },
             ),
           ),
+          if (_replyingTo != null) _buildReplyPreview(),
+          _buildMentionSuggestions(),
           _buildInputBar(),
         ],
       ),
@@ -453,6 +686,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _textController,
+                    minLines: 1,
+                    maxLines: 5,
                     style: TextStyle(
                         color: isDark ? Colors.white : Colors.black87),
                     decoration: InputDecoration(
@@ -467,11 +702,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       fillColor: isDark ? Colors.grey[800] : Colors.grey[100],
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 10,
+                        vertical: 14,
                       ),
                     ),
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -520,14 +753,16 @@ class _MessageList extends StatelessWidget {
   final ChatUser? otherUser;
   final String currentUid;
   final ScrollController scrollController;
-  final Future<void> Function(String) onDeleteMessage;
+  final void Function(Message msg, Offset pos) onMessageMenu;
+  final void Function(Message) onSwipeReply;
 
   const _MessageList({
     required this.chatId,
     required this.otherUser,
     required this.currentUid,
     required this.scrollController,
-    required this.onDeleteMessage,
+    required this.onMessageMenu,
+    required this.onSwipeReply,
   });
 
   @override
@@ -577,7 +812,8 @@ class _MessageList extends StatelessWidget {
             return MessageBubble(
               message: msg,
               isOwn: isOwn,
-              onLongPress: isOwn ? () => onDeleteMessage(msg.id) : null,
+              onLongPress: (pos) => onMessageMenu(msg, pos),
+              onSwipeReply: () => onSwipeReply(msg),
             );
           },
         );

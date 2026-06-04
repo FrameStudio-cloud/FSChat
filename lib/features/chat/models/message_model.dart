@@ -5,6 +5,8 @@ class Message {
   final String type;
   final String? mediaUrl;
   final int? duration;
+  final String? replyToId;
+  final String? replyToText;
   final DateTime timestamp;
   final List<String> seenBy;
 
@@ -15,6 +17,8 @@ class Message {
     this.type = 'text',
     this.mediaUrl,
     this.duration,
+    this.replyToId,
+    this.replyToText,
     required this.timestamp,
     this.seenBy = const [],
   });
@@ -26,6 +30,8 @@ class Message {
         'type': type,
         'mediaUrl': mediaUrl,
         'duration': duration,
+        'replyToId': replyToId,
+        'replyToText': replyToText,
         'timestamp': timestamp,
         'seenBy': seenBy,
       };
@@ -37,6 +43,8 @@ class Message {
         type: map['type'] ?? 'text',
         mediaUrl: map['mediaUrl'] as String?,
         duration: map['duration'] as int?,
+        replyToId: map['replyToId'] as String?,
+        replyToText: map['replyToText'] as String?,
         timestamp: (map['timestamp'] as dynamic)?.toDate() ?? DateTime.now(),
         seenBy: List<String>.from(map['seenBy'] ?? []),
       );

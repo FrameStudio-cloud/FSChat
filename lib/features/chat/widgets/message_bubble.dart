@@ -5,56 +5,66 @@ import '../models/message_model.dart';
 class MessageBubble extends StatelessWidget {
   final Message message;
   final bool isOwn;
-  final VoidCallback? onLongPress;
+  final void Function(Offset globalPosition)? onLongPress;
+  final VoidCallback? onSwipeReply;
 
   const MessageBubble({
     super.key,
     required this.message,
     required this.isOwn,
     this.onLongPress,
+    this.onSwipeReply,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: onLongPress,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.7,
-          ),
-          margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 12),
-          decoration: BoxDecoration(
-            color: isOwn
-                ? (Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF1B5E20)
-                    : const Color(0xFFDCF8C6))
-                : (Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[800]
-                    : Colors.white),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isOwn ? 16 : 4),
-              bottomRight: Radius.circular(isOwn ? 4 : 16),
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity != null && details.primaryVelocity! > 50) {
+          onSwipeReply?.call();
+        }
+      },
+      child: Align(
+        alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
+        child: GestureDetector(
+          onLongPressStart: (details) =>
+              onLongPress?.call(details.globalPosition),
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.7,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
+            margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 12),
+            decoration: BoxDecoration(
+              color: isOwn
+                  ? (Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF1B5E20)
+                      : const Color(0xFFDCF8C6))
+                  : (Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.white),
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isOwn ? 16 : 4),
+                bottomRight: Radius.circular(isOwn ? 4 : 16),
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isOwn ? 16 : 4),
-              bottomRight: Radius.circular(isOwn ? 4 : 16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
-            child: _buildContent(context),
+            child: ClipRRect(
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isOwn ? 16 : 4),
+                bottomRight: Radius.circular(isOwn ? 4 : 16),
+              ),
+              child: _buildContent(context),
+            ),
           ),
         ),
       ),
@@ -62,14 +72,63 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
-    switch (message.type) {
-      case 'image':
-        return _ImageContent(message: message, isOwn: isOwn);
-      case 'audio':
-        return _AudioContent(message: message, isOwn: isOwn);
-      default:
-        return _TextContent(message: message, isOwn: isOwn);
-    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (message.replyToText != null && message.replyToText!.isNotEmpty)
+          _buildReplyQuote(context),
+        switch (message.type) {
+          'image' => _ImageContent(message: message, isOwn: isOwn),
+          'audio' => _AudioContent(message: message, isOwn: isOwn),
+          _ => _TextContent(message: message, isOwn: isOwn),
+        },
+      ],
+    );
+  }
+
+  Widget _buildReplyQuote(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+            color: isOwn ? Colors.black45 : const Color(0xFF075E54),
+            width: 3,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Reply',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isOwn
+                  ? (Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white54
+                      : Colors.black54)
+                  : const Color(0xFF075E54),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            message.replyToText!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[400]
+                  : Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -83,19 +142,53 @@ class _TextContent extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(message.text,
-              style: TextStyle(
-                fontSize: 16,
-                color: isOwn && Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white
-                    : null,
-              )),
+          _buildText(context),
           const SizedBox(height: 2),
           _MetaRow(message: message, isOwn: isOwn),
         ],
       ),
+    );
+  }
+
+  Widget _buildText(BuildContext context) {
+    final text = message.text;
+    final mentionColor = isOwn ? Colors.black87 : const Color(0xFF075E54);
+    final defaultColor =
+        isOwn && Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : null;
+
+    final regex = RegExp(r'@(\w+)');
+    final matches = regex.allMatches(text);
+    if (matches.isEmpty) {
+      return Text(text, style: TextStyle(fontSize: 16, color: defaultColor));
+    }
+
+    final spans = <TextSpan>[];
+    int lastEnd = 0;
+    for (final m in matches) {
+      if (m.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, m.start)));
+      }
+      spans.add(TextSpan(
+        text: m.group(0),
+        style: TextStyle(
+          fontSize: 16,
+          color: mentionColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ));
+      lastEnd = m.end;
+    }
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+
+    return Text.rich(
+      TextSpan(
+          style: TextStyle(fontSize: 16, color: defaultColor), children: spans),
     );
   }
 }
@@ -110,7 +203,7 @@ class _ImageContent extends StatelessWidget {
     return GestureDetector(
       onTap: () => _showFullscreen(context),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Image.network(
             message.mediaUrl ?? '',

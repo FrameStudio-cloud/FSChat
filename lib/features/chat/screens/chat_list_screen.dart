@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
-import '../services/database_service.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../auth/models/user_model.dart';
+import '../../../core/services/database_service.dart';
+import '../../../shared/models/menu_action.dart';
+import '../models/chat_model.dart';
+import '../models/message_model.dart';
 import '../widgets/chat_tile.dart';
 
 class ChatListScreen extends StatelessWidget {
@@ -128,6 +132,8 @@ class ChatListScreen extends StatelessWidget {
                           },
                         );
                       },
+                      onLongPress: () =>
+                          _showChatMenu(context, chat, otherUser, db),
                     ),
                   );
                 },
@@ -185,6 +191,54 @@ class ChatListScreen extends StatelessWidget {
             style: TextStyle(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showChatMenu(
+      BuildContext context, Chat chat, ChatUser otherUser, DatabaseService db) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Icon(
+                chat.pinned ? Icons.push_pin_outlined : Icons.push_pin,
+                color: const Color(0xFF075E54),
+              ),
+              title: Text(chat.pinned ? 'Unpin chat' : 'Pin chat'),
+              onTap: () {
+                Navigator.pop(ctx);
+                db.togglePinChat(chat.id, !chat.pinned);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_rounded, color: Colors.red),
+              title: const Text('Delete chat',
+                  style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                db.deleteChat(chat.id);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

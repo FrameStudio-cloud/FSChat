@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
-import '../services/database_service.dart';
-import '../services/notification_service.dart';
+import '../../../core/services/database_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -39,6 +39,7 @@ class AuthProvider extends ChangeNotifier {
     _user = user;
     if (user != null) {
       setOnline().catchError((_) {});
+      NotificationService.startListening(user.uid);
       _userSubscription =
           _databaseService.userStream(user.uid).listen((chatUser) {
         _chatUser = chatUser;

@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
-import '../models/user_model.dart';
-import '../models/chat_model.dart';
-import '../models/message_model.dart';
+import '../../features/auth/models/user_model.dart';
+import '../../features/chat/models/chat_model.dart';
+import '../../features/chat/models/message_model.dart';
 
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -84,6 +84,7 @@ class DatabaseService {
           .map((d) => Chat.fromMap(d.data() as Map<String, dynamic>))
           .toList();
       chats.sort((a, b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
         final aTime = a.lastMessageTime ?? DateTime(2000);
         final bTime = b.lastMessageTime ?? DateTime(2000);
         return bTime.compareTo(aTime);
@@ -137,6 +138,8 @@ class DatabaseService {
     String type = 'text',
     String? mediaUrl,
     int? duration,
+    String? replyToId,
+    String? replyToText,
   }) async {
     final msgId = _uuid.v4();
     final now = DateTime.now();
@@ -151,6 +154,8 @@ class DatabaseService {
     };
     if (mediaUrl != null) msgData['mediaUrl'] = mediaUrl;
     if (duration != null) msgData['duration'] = duration;
+    if (replyToId != null) msgData['replyToId'] = replyToId;
+    if (replyToText != null) msgData['replyToText'] = replyToText;
 
     await _chats.doc(chatId).collection('messages').doc(msgId).set(msgData);
 
@@ -201,6 +206,10 @@ class DatabaseService {
     }
     batch.delete(_chats.doc(chatId));
     await batch.commit();
+  }
+
+  Future<void> togglePinChat(String chatId, bool pinned) async {
+    await _chats.doc(chatId).update({'pinned': pinned});
   }
 
   Future<void> setTyping(String chatId, String uid, bool isTyping) async {

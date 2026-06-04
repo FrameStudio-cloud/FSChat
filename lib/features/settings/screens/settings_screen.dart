@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import '../providers/auth_provider.dart';
-import '../providers/theme_provider.dart';
-import '../services/database_service.dart';
-import '../models/user_model.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../core/services/database_service.dart';
+import '../../auth/models/user_model.dart';
+import 'about_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -147,6 +148,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Dark mode'),
             value: theme.themeMode == ThemeMode.dark,
             onChanged: (v) => theme.setDarkMode(v),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.info_outline_rounded),
+            title: const Text('About'),
+            trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AboutScreen()),
+            ),
           ),
           const Divider(),
           Padding(
