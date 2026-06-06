@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'features/auth/screens/login_screen.dart';
-import 'features/chat/screens/chat_list_screen.dart';
+import 'features/home/screens/home_screen.dart';
 import 'features/chat/screens/chat_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
 import 'core/services/notification_service.dart';
@@ -49,18 +49,21 @@ class _SplashAppState extends State<SplashApp> {
     if (!mounted) return;
     setState(() {
       _initialized = true;
+      _themeProvider = themeProvider;
     });
   }
 
+  ThemeProvider? _themeProvider;
+
   @override
   Widget build(BuildContext context) {
-    if (!_initialized) {
+    if (!_initialized || _themeProvider == null) {
       return const _SplashScreen();
     }
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider.value(value: _themeProvider!),
       ],
       child: const MyApp(),
     );
@@ -144,9 +147,7 @@ class MyApp extends StatelessWidget {
           },
           home: Consumer<AuthProvider>(
             builder: (context, auth, _) {
-              return auth.isSignedIn
-                  ? const ChatListScreen()
-                  : const LoginScreen();
+              return auth.isSignedIn ? const HomeScreen() : const LoginScreen();
             },
           ),
         );

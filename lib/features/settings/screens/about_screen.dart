@@ -32,7 +32,12 @@ class AboutScreen extends StatelessWidget {
                   '• Online/offline presence with green dot\n'
                   '• Seen status (single/double check)\n'
                   '• Dark mode toggle\n'
-                  '• Push notifications (in-app)',
+                  '• Pin chats to the top\n'
+                  '• Swipe to reply with quoted message preview\n'
+                  '• @mentions — type @ to tag someone\n'
+                  '• Context menus — long-press to Copy, Delete, or Pin\n'
+                  '• Adaptive input box — expands up to 5 lines\n'
+                  '• Push notifications (in-app + local fallback)',
               Icons.star_outline,
               theme),
           const SizedBox(height: 16),

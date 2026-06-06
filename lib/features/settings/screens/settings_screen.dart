@@ -49,6 +49,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _editBio(ChatUser user) async {
+    final controller = TextEditingController(text: user.bio);
+    final bio = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit bio'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          maxLength: 100,
+          decoration: const InputDecoration(
+            hintText: 'What\'s on your mind?',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (bio != null) {
+      await _db.updateBio(user.uid, bio);
+    }
+  }
+
   Future<void> _changePhoto(String uid) async {
     final file = await _picker.pickImage(
         source: ImageSource.gallery, imageQuality: 80, maxWidth: 512);
@@ -124,6 +157,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildBioCard(ChatUser? user) {
+    if (user == null) return const SizedBox();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          leading: const Icon(Icons.info_outline, color: Color(0xFF075E54)),
+          title: const Text('Bio', style: TextStyle(fontSize: 14)),
+          subtitle: Text(
+            user.bio.isNotEmpty ? user.bio : 'Tap to add bio',
+            style: TextStyle(
+              color: user.bio.isNotEmpty ? null : Colors.grey[400],
+              fontStyle: user.bio.isEmpty ? FontStyle.italic : FontStyle.normal,
+            ),
+          ),
+          trailing:
+              Icon(Icons.edit_outlined, color: Colors.grey[400], size: 20),
+          onTap: () => _editBio(user),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -134,6 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         children: [
           _buildProfileCard(auth.chatUser),
+          _buildBioCard(auth.chatUser),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

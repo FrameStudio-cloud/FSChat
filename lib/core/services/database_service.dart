@@ -26,6 +26,10 @@ class DatabaseService {
     await _users.doc(uid).update({'name': name});
   }
 
+  Future<void> updateEmail(String uid, String email) async {
+    await _users.doc(uid).update({'email': email});
+  }
+
   Future<void> updateOnlineStatus(String uid, bool online) async {
     await _users.doc(uid).update({
       'online': online,
@@ -115,6 +119,36 @@ class DatabaseService {
 
   Future<void> updateUserPhoto(String uid, String url) async {
     await _users.doc(uid).update({'photoUrl': url});
+  }
+
+  Future<void> updateBio(String uid, String bio) async {
+    await _users.doc(uid).update({'bio': bio});
+  }
+
+  Future<void> clearChat(String chatId) async {
+    final messages = await _chats.doc(chatId).collection('messages').get();
+    final batch = _firestore.batch();
+    for (final doc in messages.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+    await _chats.doc(chatId).update({
+      'lastMessage': '',
+      'lastMessageTime': null,
+      'lastMessageSender': '',
+    });
+  }
+
+  Stream<List<Message>> sharedMediaStream(String chatId) {
+    return _chats
+        .doc(chatId)
+        .collection('messages')
+        .where('type', whereIn: ['image', 'audio'])
+        .orderBy('timestamp', descending: true)
+        .limit(20)
+        .snapshots()
+        .map(
+            (snap) => snap.docs.map((d) => Message.fromMap(d.data())).toList());
   }
 
   Future<String> uploadImage(
@@ -210,6 +244,12 @@ class DatabaseService {
 
   Future<void> togglePinChat(String chatId, bool pinned) async {
     await _chats.doc(chatId).update({'pinned': pinned});
+  }
+
+  Future<void> blockUser(String uid, String blockedUid) async {
+    await _users.doc(uid).update({
+      'blockedUsers': FieldValue.arrayUnion([blockedUid]),
+    });
   }
 
   Future<void> setTyping(String chatId, String uid, bool isTyping) async {

@@ -64,6 +64,23 @@ A real-time messaging app built with Flutter and Firebase.
 - Toggle dark/light theme from Settings
 - Full theme support throughout the app
 
+### Contact Info
+- Tap avatar or name in chat header to open Contact Info screen
+- Large profile photo (tappable for fullscreen), bio, email, online/last seen
+- Voice/Video call buttons (placeholders), Send message
+- Shared media gallery — swipeable PageView for images
+- Clear chat, Block user
+
+### Wallpaper
+- Set a custom wallpaper from chat AppBar (wallpaper icon)
+- Solid color presets or custom image from gallery
+- Stored locally — works fully offline
+
+### Navigation
+- Bottom navigation bar with 3 tabs: Chats, Calls, Contacts
+- Contacts tab lists all users with search + online dots
+- Calls tab is a shell (empty state)
+
 ### Push Notifications
 - In-app snackbar notifications on foreground (OneSignal)
 - Local notification fallback for Huawei devices (`flutter_local_notifications`)
@@ -107,12 +124,15 @@ Output: `build/app/outputs/flutter-apk/app-debug.apk`
 lib/
   main.dart                     — App entry point, routing, theme
   core/
-    providers/                  — Shared state (theme, auth)
-    services/                   — Shared services (database, notifications)
+    providers/                  — Shared state (theme + wallpaper)
+    services/                   — Shared services (database, notifications, local storage)
   features/
     auth/                       — Auth: login, register, user model
-    chat/                       — Chat: list, messages, voice, images
-    settings/                   — Profile, theme toggle, sign-out
+    chat/                       — Chat: list, messages, voice, images, contact info
+    home/                       — Bottom nav: Chats, Calls, Contacts tabs
+    calls/                      — Call log shell
+    contacts/                   — All users list with search
+    settings/                   — Profile, bio, theme, about, sign-out
   shared/
     models/                     — Shared models (menu actions)
 ```
@@ -124,9 +144,17 @@ lib/
 - [x] Message context menu (Copy/Delete)
 - [x] Chat context menu (Pin/Unpin/Delete)
 - [x] Local notifications fallback (Huawei)
+- [x] Contact Info screen (photo, bio, email, status, shared media, block, clear)
+- [x] Bottom navigation (Chats, Calls, Contacts)
+- [x] Wallpaper (colors + custom images, local-only, offline)
+- [x] Online status lifecycle fix (background → offline)
+- [x] Dark mode persistence fix
+- [x] Reply bug fix (cleared on all send types)
+- [x] Bio editing in Settings
 - [ ] Group chats
 - [ ] End-to-end encryption
 - [ ] Message reactions
+- [ ] Voice/video calling
 - [ ] Release signing & Play Store publish
 
 ---

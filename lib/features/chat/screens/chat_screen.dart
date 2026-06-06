@@ -9,9 +9,11 @@ import 'package:uuid/uuid.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../../../core/services/database_service.dart';
+import '../../../core/providers/theme_provider.dart';
 import '../../../shared/models/menu_action.dart';
 import '../models/message_model.dart';
 import '../widgets/message_bubble.dart';
+import 'user_info_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -116,21 +118,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _typingTimer?.cancel();
     final uid = context.read<AuthProvider>().user!.uid;
+    final replyTo = _replyingTo;
+    setState(() => _replyingTo = null);
     await _db.setTyping(chatId, uid, false);
     try {
       await _db.sendMessage(
         chatId: chatId,
         senderId: uid,
         text: text,
-        replyToId: _replyingTo?.id,
-        replyToText: _replyingTo?.text.isNotEmpty == true
-            ? _replyingTo!.text
-            : _replyingTo?.type == 'image'
+        replyToId: replyTo?.id,
+        replyToText: replyTo?.text.isNotEmpty == true
+            ? replyTo!.text
+            : replyTo?.type == 'image'
                 ? '📷 Photo'
                 : '🎤 Voice message',
       );
       _textController.clear();
-      setState(() => _replyingTo = null);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -475,12 +478,22 @@ class _ChatScreenState extends State<ChatScreen> {
       final uid = context.read<AuthProvider>().user!.uid;
       final msgId = _uuid.v4();
       final url = await _db.uploadImage(chatId, msgId, file.path);
+      final replyTo = _replyingTo;
+      setState(() => _replyingTo = null);
       await _db.sendMessage(
         chatId: chatId,
         senderId: uid,
         text: '',
         type: 'image',
         mediaUrl: url,
+        replyToId: replyTo?.id,
+        replyToText: replyTo != null
+            ? (replyTo.text.isNotEmpty
+                ? replyTo.text
+                : replyTo.type == 'image'
+                    ? '📷 Photo'
+                    : '🎤 Voice message')
+            : null,
       );
     } catch (e) {
       if (mounted) {
@@ -503,6 +516,168 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _hideKeyboard() {
     FocusScope.of(context).unfocus();
+  }
+
+  static const _wallpaperColors = [
+    '',
+    '#F5F5DC',
+    '#FFF8E1',
+    '#E8F5E9',
+    '#E0F7FA',
+    '#E3F2FD',
+    '#F3E5F5',
+    '#FFEBEE',
+  ];
+
+  void _showWallpaperPicker(BuildContext context) {
+    final theme = context.read<ThemeProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Chat Wallpaper',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 16),
+              Text('DEFAULT',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[500])),
+              const SizedBox(height: 8),
+              _wallpaperOption(
+                ctx,
+                label: 'No wallpaper',
+                isSelected: theme.wallpaper.isEmpty,
+                onTap: () {
+                  theme.removeWallpaper();
+                  Navigator.pop(ctx);
+                },
+              ),
+              const SizedBox(height: 16),
+              Text('COLORS',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[500])),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: _wallpaperColors
+                    .where((c) => c.isNotEmpty)
+                    .map((c) => GestureDetector(
+                          onTap: () {
+                            theme.setWallpaper(c);
+                            Navigator.pop(ctx);
+                          },
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color:
+                                  Color(int.parse(c.replaceFirst('#', '0xff'))),
+                              borderRadius: BorderRadius.circular(12),
+                              border: theme.wallpaper == c
+                                  ? Border.all(
+                                      color: const Color(0xFF075E54), width: 3)
+                                  : null,
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Text('CUSTOM IMAGE',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[500])),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF075E54).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.image_outlined,
+                      color: Color(0xFF075E54)),
+                ),
+                title: const Text('Choose from gallery'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final file = await ImagePicker().pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 80,
+                    maxWidth: 1080,
+                    maxHeight: 1920,
+                  );
+                  if (file != null) {
+                    await context
+                        .read<ThemeProvider>()
+                        .setWallpaperImage(file.path);
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _wallpaperOption(
+    BuildContext context, {
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: isDark ? const Color(0xFF2D2D2D) : Colors.grey[50],
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Text(label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? const Color(0xFF075E54) : null,
+              )),
+        ),
+      ),
+    );
   }
 
   Future<void> _startRecording() async {
@@ -556,6 +731,8 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final msgId = _uuid.v4();
       final url = await _db.uploadAudio(chatId, msgId, path);
+      final replyTo = _replyingTo;
+      setState(() => _replyingTo = null);
       await _db.sendMessage(
         chatId: chatId,
         senderId: uid,
@@ -563,6 +740,14 @@ class _ChatScreenState extends State<ChatScreen> {
         type: 'audio',
         mediaUrl: url,
         duration: duration,
+        replyToId: replyTo?.id,
+        replyToText: replyTo != null
+            ? (replyTo.text.isNotEmpty
+                ? replyTo.text
+                : replyTo.type == 'image'
+                    ? '📷 Photo'
+                    : '🎤 Voice message')
+            : null,
       );
     } finally {
       if (mounted) setState(() => _isUploading = false);
@@ -582,22 +767,47 @@ class _ChatScreenState extends State<ChatScreen> {
             if (liveUser != null) _otherUser = liveUser;
             return Row(
               children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundImage: liveUser?.photoUrl.isNotEmpty == true
-                      ? NetworkImage(liveUser!.photoUrl)
-                      : null,
-                  child: liveUser?.photoUrl.isEmpty == true
-                      ? Text(liveUser!.name[0].toUpperCase(),
-                          style: const TextStyle(fontSize: 14))
-                      : null,
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserInfoScreen(
+                        user: liveUser ?? _otherUser!,
+                        chatId: chatId,
+                      ),
+                    ),
+                  ),
+                  child: Hero(
+                    tag: 'avatar_${liveUser?.uid ?? _otherUser!.uid}',
+                    child: CircleAvatar(
+                      radius: 16,
+                      backgroundImage: liveUser?.photoUrl.isNotEmpty == true
+                          ? NetworkImage(liveUser!.photoUrl)
+                          : null,
+                      child: liveUser?.photoUrl.isEmpty == true
+                          ? Text(liveUser!.name[0].toUpperCase(),
+                              style: const TextStyle(fontSize: 14))
+                          : null,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(liveUser?.name ?? '',
-                        style: const TextStyle(fontSize: 16)),
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UserInfoScreen(
+                            user: liveUser ?? _otherUser!,
+                            chatId: chatId,
+                          ),
+                        ),
+                      ),
+                      child: Text(liveUser?.name ?? '',
+                          style: const TextStyle(fontSize: 16)),
+                    ),
                     StreamBuilder(
                       stream: _db.typingStream(chatId, otherUid),
                       builder: (context, typingSnap) {
@@ -628,6 +838,13 @@ class _ChatScreenState extends State<ChatScreen> {
             );
           },
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.wallpaper_rounded),
+            tooltip: 'Change wallpaper',
+            onPressed: () => _showWallpaperPicker(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -636,14 +853,22 @@ class _ChatScreenState extends State<ChatScreen> {
               backgroundColor: Colors.transparent,
             ),
           Expanded(
-            child: _MessageList(
-              chatId: chatId,
-              otherUser: _otherUser,
-              currentUid: currentUid,
-              scrollController: _scrollController,
-              onMessageMenu: _showMessageMenu,
-              onSwipeReply: (msg) {
-                setState(() => _replyingTo = msg);
+            child: Consumer<ThemeProvider>(
+              builder: (context, theme, _) {
+                final deco = theme.wallpaperDecoration;
+                return Container(
+                  decoration: deco,
+                  child: _MessageList(
+                    chatId: chatId,
+                    otherUser: _otherUser,
+                    currentUid: currentUid,
+                    scrollController: _scrollController,
+                    onMessageMenu: _showMessageMenu,
+                    onSwipeReply: (msg) {
+                      setState(() => _replyingTo = msg);
+                    },
+                  ),
+                );
               },
             ),
           ),

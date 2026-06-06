@@ -6,7 +6,7 @@ import '../../../core/services/database_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../models/user_model.dart';
 
-class AuthProvider extends ChangeNotifier {
+class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final DatabaseService _databaseService = DatabaseService();
 
@@ -23,14 +23,25 @@ class AuthProvider extends ChangeNotifier {
   bool get isSignedIn => _user != null;
 
   AuthProvider() {
+    WidgetsBinding.instance.addObserver(this);
     _authSubscription = _authService.authState.listen(_onAuthStateChanged);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
     _userSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      setOnline();
+    } else if (state == AppLifecycleState.paused) {
+      setOffline();
+    }
   }
 
   void _onAuthStateChanged(User? user) {
@@ -106,6 +117,8 @@ class AuthProvider extends ChangeNotifier {
         uid: user.uid,
         name: name ?? 'User',
         photoUrl: user.photoURL ?? '',
+        email: user.email ?? '',
+        bio: 'Hey there! I am using FSChat',
         pushToken: pushToken,
       ));
     } else {
@@ -114,6 +127,13 @@ class AuthProvider extends ChangeNotifier {
       }
       if (name != null && name != existing.name) {
         await _databaseService.updateName(user.uid, name);
+      }
+      if (existing.email.isEmpty && user.email != null) {
+        await _databaseService.updateEmail(user.uid, user.email!);
+      }
+      if (existing.bio.isEmpty) {
+        await _databaseService.updateBio(
+            user.uid, 'Hey there! I am using FSChat');
       }
     }
   }
