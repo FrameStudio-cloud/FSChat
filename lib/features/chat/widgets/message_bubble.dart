@@ -7,6 +7,9 @@ class MessageBubble extends StatelessWidget {
   final bool isOwn;
   final void Function(Offset globalPosition)? onLongPress;
   final VoidCallback? onSwipeReply;
+  final bool isSelecting;
+  final bool isSelected;
+  final VoidCallback? onTap;
 
   const MessageBubble({
     super.key,
@@ -14,59 +17,90 @@ class MessageBubble extends StatelessWidget {
     required this.isOwn,
     this.onLongPress,
     this.onSwipeReply,
+    this.isSelecting = false,
+    this.isSelected = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity != null && details.primaryVelocity! > 50) {
-          onSwipeReply?.call();
-        }
-      },
-      child: Align(
-        alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
-        child: GestureDetector(
-          onLongPressStart: (details) =>
-              onLongPress?.call(details.globalPosition),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.7,
-            ),
-            margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 12),
-            decoration: BoxDecoration(
-              color: isOwn
-                  ? (Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF1B5E20)
-                      : const Color(0xFFDCF8C6))
-                  : (Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey[800]
-                      : Colors.white),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isOwn ? 16 : 4),
-                bottomRight: Radius.circular(isOwn ? 4 : 16),
+    final bubble = Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.7,
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 12),
+      decoration: BoxDecoration(
+        color: isOwn
+            ? (Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1B5E20)
+                : const Color(0xFFDCF8C6))
+            : (Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[800]
+                : Colors.white),
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(isOwn ? 16 : 4),
+          bottomRight: Radius.circular(isOwn ? 4 : 16),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(isOwn ? 16 : 4),
+          bottomRight: Radius.circular(isOwn ? 4 : 16),
+        ),
+        child: _buildContent(context),
+      ),
+    );
+
+    return Align(
+      alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isSelecting && !isOwn)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: _SelectionCheck(
+                isSelected: isSelected,
+                onTap: onTap,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isOwn ? 16 : 4),
-                bottomRight: Radius.circular(isOwn ? 4 : 16),
-              ),
-              child: _buildContent(context),
+          Flexible(
+            child: GestureDetector(
+              onHorizontalDragEnd: isSelecting
+                  ? null
+                  : (details) {
+                      if (details.primaryVelocity != null &&
+                          details.primaryVelocity! > 50) {
+                        onSwipeReply?.call();
+                      }
+                    },
+              onTap: isSelecting ? onTap : null,
+              onLongPressStart: isSelecting
+                  ? null
+                  : (details) => onLongPress?.call(details.globalPosition),
+              child: bubble,
             ),
           ),
-        ),
+          if (isSelecting && isOwn)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: _SelectionCheck(
+                isSelected: isSelected,
+                onTap: onTap,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -79,7 +113,9 @@ class MessageBubble extends StatelessWidget {
         if (message.replyToText != null && message.replyToText!.isNotEmpty)
           _buildReplyQuote(context),
         switch (message.type) {
-          'image' => _ImageContent(message: message, isOwn: isOwn),
+          'image' ||
+          'multi_image' =>
+            _ImageContent(message: message, isOwn: isOwn),
           'audio' => _AudioContent(message: message, isOwn: isOwn),
           'sticker' => _StickerContent(message: message, isOwn: isOwn),
           _ => _TextContent(message: message, isOwn: isOwn),
@@ -162,11 +198,26 @@ class _TextContent extends StatelessWidget {
         isOwn && Theme.of(context).brightness == Brightness.dark
             ? Colors.white
             : null;
+    final editedColor = isOwn
+        ? (Theme.of(context).brightness == Brightness.dark
+            ? Colors.white38
+            : Colors.black45)
+        : Colors.grey;
 
     final regex = RegExp(r'@(\w+)');
     final matches = regex.allMatches(text);
     if (matches.isEmpty) {
-      return Text(text, style: TextStyle(fontSize: 16, color: defaultColor));
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child:
+                Text(text, style: TextStyle(fontSize: 16, color: defaultColor)),
+          ),
+          if (message.isEdited)
+            Text(' edited', style: TextStyle(fontSize: 11, color: editedColor)),
+        ],
+      );
     }
 
     final spans = <TextSpan>[];
@@ -189,9 +240,19 @@ class _TextContent extends StatelessWidget {
       spans.add(TextSpan(text: text.substring(lastEnd)));
     }
 
-    return Text.rich(
-      TextSpan(
-          style: TextStyle(fontSize: 16, color: defaultColor), children: spans),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text.rich(
+            TextSpan(
+                style: TextStyle(fontSize: 16, color: defaultColor),
+                children: spans),
+          ),
+        ),
+        if (message.isEdited)
+          Text(' edited', style: TextStyle(fontSize: 11, color: editedColor)),
+      ],
     );
   }
 }
@@ -203,29 +264,41 @@ class _ImageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (message.type == 'multi_image' &&
+        message.mediaUrls != null &&
+        message.mediaUrls!.isNotEmpty) {
+      return _MultiImageGrid(
+        urls: message.mediaUrls!,
+        isOwn: isOwn,
+        message: message,
+      );
+    }
     return GestureDetector(
-      onTap: () => _showFullscreen(context),
+      onTap: () => _showFullscreen(context, message.mediaUrl ?? ''),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Image.network(
-            message.mediaUrl ?? '',
-            width: double.infinity,
-            fit: BoxFit.cover,
-            loadingBuilder: (_, child, progress) {
-              if (progress == null) return child;
-              return Container(
-                height: 200,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: Image.network(
+              message.mediaUrl ?? '',
+              width: double.infinity,
+              fit: BoxFit.cover,
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  height: 200,
+                  color: Colors.grey[200],
+                  child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                );
+              },
+              errorBuilder: (_, __, ___) => Container(
+                height: 150,
                 color: Colors.grey[200],
                 child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-              );
-            },
-            errorBuilder: (_, __, ___) => Container(
-              height: 150,
-              color: Colors.grey[200],
-              child: const Center(
-                  child: Icon(Icons.broken_image, color: Colors.grey)),
+                    child: Icon(Icons.broken_image, color: Colors.grey)),
+              ),
             ),
           ),
           Padding(
@@ -237,7 +310,7 @@ class _ImageContent extends StatelessWidget {
     );
   }
 
-  void _showFullscreen(BuildContext context) {
+  void _showFullscreen(BuildContext context, String url) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -250,10 +323,158 @@ class _ImageContent extends StatelessWidget {
           ),
           body: Center(
             child: InteractiveViewer(
-              child: Image.network(message.mediaUrl ?? '', fit: BoxFit.contain),
+              child: Image.network(url, fit: BoxFit.contain),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MultiImageGrid extends StatelessWidget {
+  final List<String> urls;
+  final bool isOwn;
+  final Message message;
+  const _MultiImageGrid({
+    required this.urls,
+    required this.isOwn,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVisible = 4;
+    final visible = urls.take(maxVisible).toList();
+    final remaining = urls.length - maxVisible;
+
+    return GestureDetector(
+      onTap: () => _showFullscreen(context, urls.first),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 2,
+              children: List.generate(visible.length, (i) {
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      visible[i],
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(Icons.broken_image, color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                    if (i == maxVisible - 1 && remaining > 0)
+                      Container(
+                        color: Colors.black54,
+                        child: Center(
+                          child: Text(
+                            '+$remaining',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              }),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+            child: _MetaRow(message: message, isOwn: isOwn),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFullscreen(BuildContext context, String url) {
+    final initialIndex = urls.indexOf(url);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _ImageGallery(
+          urls: urls,
+          initialIndex: initialIndex >= 0 ? initialIndex : 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageGallery extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+  const _ImageGallery({
+    required this.urls,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_ImageGallery> createState() => _ImageGalleryState();
+}
+
+class _ImageGalleryState extends State<_ImageGallery> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text('${_currentIndex + 1} / ${widget.urls.length}'),
+      ),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (i) => setState(() => _currentIndex = i),
+        children: widget.urls.map((url) {
+          return Center(
+            child: InteractiveViewer(
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -502,6 +723,44 @@ class _MetaRow extends StatelessWidget {
 
   String _formatTime(DateTime dt) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _SelectionCheck extends StatelessWidget {
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  const _SelectionCheck({
+    required this.isSelected,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isSelected ? const Color(0xFF075E54) : Colors.transparent,
+            border: Border.all(
+              color: isSelected ? const Color(0xFF075E54) : Colors.grey,
+              width: 2,
+            ),
+          ),
+          child: isSelected
+              ? const Icon(Icons.check, size: 16, color: Colors.white)
+              : null,
+        ),
+      ),
+    );
   }
 }
 

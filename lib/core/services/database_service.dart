@@ -171,6 +171,7 @@ class DatabaseService {
     String text = '',
     String type = 'text',
     String? mediaUrl,
+    List<String>? mediaUrls,
     int? duration,
     String? replyToId,
     String? replyToText,
@@ -188,6 +189,7 @@ class DatabaseService {
       'seenBy': [senderId],
     };
     if (mediaUrl != null) msgData['mediaUrl'] = mediaUrl;
+    if (mediaUrls != null) msgData['mediaUrls'] = mediaUrls;
     if (duration != null) msgData['duration'] = duration;
     if (replyToId != null) msgData['replyToId'] = replyToId;
     if (replyToText != null) msgData['replyToText'] = replyToText;
@@ -200,9 +202,11 @@ class DatabaseService {
         ? text
         : type == 'image'
             ? '📷 Photo'
-            : type == 'sticker'
-                ? '📦 Sticker'
-                : '🎤 Voice message';
+            : type == 'multi_image'
+                ? '📷 ${mediaUrls?.length ?? 0} Photos'
+                : type == 'sticker'
+                    ? '📦 Sticker'
+                    : '🎤 Voice message';
 
     await _chats.doc(chatId).update({
       'lastMessage': displayText,
@@ -235,6 +239,64 @@ class DatabaseService {
 
   Future<void> deleteMessage(String chatId, String messageId) async {
     await _chats.doc(chatId).collection('messages').doc(messageId).delete();
+    await _refreshLastMessage(chatId);
+  }
+
+  Future<void> batchDeleteMessages(
+      String chatId, List<String> messageIds) async {
+    final batch = _firestore.batch();
+    for (final id in messageIds) {
+      batch.delete(_chats.doc(chatId).collection('messages').doc(id));
+    }
+    await batch.commit();
+    await _refreshLastMessage(chatId);
+  }
+
+  Future<void> _refreshLastMessage(String chatId) async {
+    final snap = await _chats
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) {
+      await _chats.doc(chatId).update({
+        'lastMessage': '',
+        'lastMessageTime': null,
+        'lastMessageSender': '',
+      });
+      return;
+    }
+    final data = snap.docs.first.data();
+    final type = data['type'] as String? ?? 'text';
+    final text = data['text'] as String? ?? '';
+    final senderId = data['senderId'] as String? ?? '';
+    final mediaUrls = data['mediaUrls'] as List?;
+
+    final displayText = type == 'text'
+        ? text
+        : type == 'image'
+            ? '📷 Photo'
+            : type == 'multi_image'
+                ? '📷 ${mediaUrls?.length ?? 0} Photos'
+                : type == 'sticker'
+                    ? '📦 Sticker'
+                    : '🎤 Voice message';
+
+    await _chats.doc(chatId).update({
+      'lastMessage': displayText,
+      'lastMessageTime': data['timestamp'],
+      'lastMessageSender': senderId,
+    });
+  }
+
+  Future<void> editMessage(
+      String chatId, String messageId, String newText) async {
+    await _chats
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId)
+        .update({'text': newText, 'isEdited': true});
   }
 
   Future<void> deleteChat(String chatId) async {
