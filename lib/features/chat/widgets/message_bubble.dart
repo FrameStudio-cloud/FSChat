@@ -103,7 +103,9 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Reply',
+            message.replyToSenderName != null
+                ? 'Reply to ${message.replyToSenderName}'
+                : 'Reply',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,

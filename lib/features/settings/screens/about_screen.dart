@@ -52,8 +52,7 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 16),
           _infoRow('Version', '1.0.0', theme),
           _infoRow('Developer', 'Frames Studio', theme),
-          _infoRow(
-              'Built with', 'Flutter 3.41.6 · Firebase · OneSignal', theme),
+          _infoRow('Built with', 'Flutter 3.41.6 · Firebase', theme),
         ],
       ),
     );

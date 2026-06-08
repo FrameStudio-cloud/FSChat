@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/auth/models/user_model.dart';
@@ -10,8 +10,9 @@ class NotificationService {
       GlobalKey<NavigatorState>();
   static FlutterLocalNotificationsPlugin? _localNotifications;
   static StreamSubscription<QuerySnapshot>? _chatSubscription;
+  static String? _fcmToken;
 
-  static Future<void> init(String appId) async {
+  static Future<void> init() async {
     _localNotifications = FlutterLocalNotificationsPlugin();
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -25,49 +26,56 @@ class NotificationService {
         ?.requestNotificationsPermission();
 
     try {
-      OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-      await OneSignal.initialize(appId);
-      await OneSignal.Notifications.requestPermission(true);
+      final messaging = FirebaseMessaging.instance;
 
-      OneSignal.Notifications.addClickListener((event) {
-        final data = event.notification.additionalData;
-        if (data != null && data['chatId'] != null) {
-          _navigateToChat(data);
-        }
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      _fcmToken = await messaging.getToken();
+
+      messaging.onTokenRefresh.listen((token) {
+        _fcmToken = token;
       });
 
-      OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-        final data = event.notification.additionalData ?? {};
-        final title = event.notification.title ?? '';
-        final body = event.notification.body ?? '';
+      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
-        final ctx = navigatorKey.currentContext;
-        if (ctx == null) return;
-
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          SnackBar(
-            content: Text('$title: $body'),
-            duration: const Duration(seconds: 4),
-            action: data['chatId'] != null
-                ? SnackBarAction(
-                    label: 'Open',
-                    onPressed: () => _navigateToChat(data),
-                  )
-                : null,
-          ),
-        );
-        event.preventDefault();
-      });
-    } catch (_) {
-      // Huawei without Play Services — OneSignal won't init, use local notifications
+      FirebaseMessaging.onMessageOpenedApp.listen(_onBackgroundMessageOpened);
+    } catch (e) {
+      debugPrint('FCM init failed: $e');
     }
   }
 
-  static String? getUserId() {
-    try {
-      return OneSignal.User.pushSubscription.id;
-    } catch (_) {
-      return null;
+  static String? getPushToken() => _fcmToken;
+
+  static void _onForegroundMessage(RemoteMessage message) {
+    final data = message.data;
+    final title = message.notification?.title ?? '';
+    final body = message.notification?.body ?? '';
+
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        content: Text('$title: $body'),
+        duration: const Duration(seconds: 4),
+        action: data['chatId'] != null
+            ? SnackBarAction(
+                label: 'Open',
+                onPressed: () => _navigateToChat(data),
+              )
+            : null,
+      ),
+    );
+  }
+
+  static void _onBackgroundMessageOpened(RemoteMessage message) {
+    final data = message.data;
+    if (data['chatId'] != null) {
+      _navigateToChat(data);
     }
   }
 

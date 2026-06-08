@@ -174,6 +174,7 @@ class DatabaseService {
     int? duration,
     String? replyToId,
     String? replyToText,
+    String? replyToSenderName,
   }) async {
     final msgId = _uuid.v4();
     final now = DateTime.now();
@@ -190,6 +191,8 @@ class DatabaseService {
     if (duration != null) msgData['duration'] = duration;
     if (replyToId != null) msgData['replyToId'] = replyToId;
     if (replyToText != null) msgData['replyToText'] = replyToText;
+    if (replyToSenderName != null)
+      msgData['replyToSenderName'] = replyToSenderName;
 
     await _chats.doc(chatId).collection('messages').doc(msgId).set(msgData);
 
@@ -197,7 +200,9 @@ class DatabaseService {
         ? text
         : type == 'image'
             ? '📷 Photo'
-            : '🎤 Voice message';
+            : type == 'sticker'
+                ? '📦 Sticker'
+                : '🎤 Voice message';
 
     await _chats.doc(chatId).update({
       'lastMessage': displayText,

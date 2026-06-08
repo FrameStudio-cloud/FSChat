@@ -13,13 +13,13 @@
 - **Database**: Cloud Firestore
 - **Storage**: Firebase Storage (images, audio)
 - **State management**: Provider
-- **Push**: OneSignal SDK v5.5.7 + `flutter_local_notifications` (Huawei fallback)
+- **Push**: Firebase Cloud Messaging (FCM) + `flutter_local_notifications` (foreground/local fallback)
 - **Local storage**: path_provider + flutter_image_compress (wallpapers, cache)
-- **Cloud Function**: Node.js 22 (2nd Gen) — `sendMessageNotification` triggers on new message, sends via OneSignal REST API
+- **Cloud Function**: Node.js 22 (2nd Gen) — `sendMessageNotification` triggers on new message, sends via FCM `admin.messaging().send()`
 
 ## Key packages
-- `onesignal_flutter: ^5.2.0` — push notifications
-- `flutter_local_notifications: ^18.0.1` — local notification fallback (Huawei)
+- `firebase_messaging: ^15.2.0` — FCM push notifications
+- `flutter_local_notifications: ^18.0.1` — foreground notification display
 - `path_provider: ^2.1.5` — app documents directory for wallpapers/cache
 - `flutter_image_compress: ^2.4.0` — compress wallpaper images before saving
 - `just_audio: ^0.9.42` — voice message playback
@@ -43,11 +43,10 @@
 - **Firebase config files**: `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist`
 - **Debug SHA-1 fingerprint**: `C7:C2:CE:1A:4E:32:E8:5D:E4:44:E3:EA:57:B2:47:73:7E:D3:7C:1D`
 
-## OneSignal
-- **App ID**: `7f9abadb-2c15-4019-80c6-a6d2393dc282`
-- **REST API Key**: set as env var `ONESIGNAL_REST_KEY` (in `functions/.env`)
-- **Status**: Huawei Push Kit NOT configured → system/bg notifications don't deliver on Huawei
-- **To fix later**: enable Huawei Platform in OneSignal Settings → need HMS credentials from Huawei Developer account
+## Push Notifications (FCM)
+- **Removed**: OneSignal SDK replaced with `firebase_messaging` + FCM
+- **Cloud Function**: sends via `admin.messaging().send()` directly (no third-party API)
+- **Huawei**: FCM doesn't work without Google Play Services → foreground notifications fallback via `flutter_local_notifications` Firestore listener
 
 ## App branding
 - **Name**: FSChat (Frames Studio Chat)
@@ -82,7 +81,7 @@ lib/
       theme_provider.dart       — Dark/light mode + wallpaper (SharedPreferences + local file)
     services/
       database_service.dart     — Firestore CRUD (users, chats, messages, media, block, clear)
-      notification_service.dart — OneSignal init + flutter_local_notifications fallback, Firestore listener for bg notifications
+      notification_service.dart — FCM init + flutter_local_notifications foreground display, Firestore listener for local notifications
       local_storage_service.dart — App dirs, wallpaper save/remove, cache
   features/
     auth/
@@ -152,7 +151,7 @@ lib/
 ## Cloud Function
 - **Deployed name**: `sendMessageNotification` (2nd Gen, Node.js 22)
 - **Trigger**: Firestore `chats/{chatId}/messages/{messageId}` on create
-- **Behavior**: reads sender name, gets recipient's `pushToken`, sends via OneSignal API
+- **Behavior**: reads sender name, gets recipient's `pushToken`, sends via FCM `admin.messaging().send()`
 - **Secrets**: `ONESIGNAL_REST_KEY` in `functions/.env`
 
 ## Media support
@@ -164,7 +163,7 @@ lib/
 ## Known limitations
 - **Push notifications**: Huawei Push Kit not configured → no bg/lock-screen notifications on this phone. Foreground snackbars + local notification fallback.
 - **NavigationService.navigatorKey not wired** → tapping notification to open chat may crash (ChatScreen expects otherUser)
-- **Cloud Function uses legacy OneSignal API** — `include_subscription_ids` with raw pushToken (vs external_user_id)
+- **Cloud Function sends via FCM** — uses `admin.messaging().send()` with recipient FCM token
 - Release build needs signing key configured
 - iOS build requires Mac
 
@@ -196,7 +195,7 @@ lib/
 | **`flutter analyze` crashes** | `PathNotFoundException: Directory listing failed, path = 'C:\tools\flutter\examples\*'` | Flutter 3.41.6 bug — missing `examples/` directory. Use `flutter build apk --debug` instead — it compiles all Dart and catches import/type errors. |
 
 ## To revisit later
-- Configure Huawei Push Kit in OneSignal (Settings → Platforms → Huawei → enter HMS credentials)
+- Huawei background notifications won't work without Google Play Services — can't fix without HMS
 - Once configured: rebuild APK, test push notifications on lock screen & background
 - Add message reactions (infrastructure in place via MenuAction model)
 - Group chats

@@ -43,12 +43,14 @@ class _DrawingPath {
   });
 }
 
-enum _EditorTool { pen, text }
+enum _EditorTool { pen, text, erase }
 
 class _ImageEditorScreenState extends State<ImageEditorScreen> {
   final List<_DrawingPath> _paths = [];
+  final List<_DrawingPath> _eraserPaths = [];
   final List<_TextOverlay> _texts = [];
   _DrawingPath? _currentPath;
+  _DrawingPath? _currentEraserPath;
   _EditorTool _activeTool = _EditorTool.pen;
   Color _penColor = Colors.red;
   double _penWidth = 4;
@@ -89,6 +91,15 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
+      final hasErase = _eraserPaths.isNotEmpty;
+      if (hasErase) {
+        canvas.saveLayer(
+            Rect.fromLTWH(0, 0, outSize.width, outSize.height), Paint());
+      }
+
+      final scaleX = outSize.width / widget.outputSize.width;
+      final scaleY = outSize.height / widget.outputSize.height;
+
       final paint = Paint()..filterQuality = FilterQuality.high;
       canvas.drawImageRect(
         _sourceImage!,
@@ -98,8 +109,12 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
         paint,
       );
 
-      final scaleX = outSize.width / widget.outputSize.width;
-      final scaleY = outSize.height / widget.outputSize.height;
+      if (hasErase) {
+        for (final path in _eraserPaths) {
+          _drawEraserPathOnCanvas(canvas, path, scaleX);
+        }
+        canvas.restore();
+      }
 
       for (final path in _paths) {
         if (path.points.length < 2) continue;
@@ -266,6 +281,8 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
                       sourceImage: _sourceImage,
                       paths: _paths,
                       currentPath: _currentPath,
+                      eraserPaths: _eraserPaths,
+                      currentEraserPath: _currentEraserPath,
                     ),
                   ),
                   ..._texts.asMap().entries.map((entry) {
@@ -312,11 +329,18 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
                             onPanEnd: _onPanEnd,
                             behavior: HitTestBehavior.translucent,
                           )
-                        : GestureDetector(
-                            onTapUp: (details) =>
-                                _addTextAt(details.localPosition),
-                            behavior: HitTestBehavior.translucent,
-                          ),
+                        : _activeTool == _EditorTool.erase
+                            ? GestureDetector(
+                                onPanStart: _onEraserPanStart,
+                                onPanUpdate: _onEraserPanUpdate,
+                                onPanEnd: _onEraserPanEnd,
+                                behavior: HitTestBehavior.translucent,
+                              )
+                            : GestureDetector(
+                                onTapUp: (details) =>
+                                    _addTextAt(details.localPosition),
+                                behavior: HitTestBehavior.translucent,
+                              ),
                   ),
                 ],
               ),
@@ -345,6 +369,43 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       setState(() {
         _paths.add(_currentPath!);
         _currentPath = null;
+      });
+    }
+  }
+
+  void _onEraserPanStart(DragStartDetails details) {
+    _currentEraserPath = _DrawingPath(
+        color: Colors.white,
+        strokeWidth: _penWidth,
+        points: [details.localPosition]);
+  }
+
+  void _onEraserPanUpdate(DragUpdateDetails details) {
+    _currentEraserPath?.points.add(details.localPosition);
+    setState(() {});
+  }
+
+  void _drawEraserPathOnCanvas(Canvas canvas, _DrawingPath path, double scale) {
+    if (path.points.length < 2) return;
+    final paint = Paint()
+      ..blendMode = BlendMode.clear
+      ..strokeWidth = path.strokeWidth * scale
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final uiPath = Path();
+    uiPath.moveTo(path.points[0].dx * scale, path.points[0].dy * scale);
+    for (int i = 1; i < path.points.length; i++) {
+      uiPath.lineTo(path.points[i].dx * scale, path.points[i].dy * scale);
+    }
+    canvas.drawPath(uiPath, paint);
+  }
+
+  void _onEraserPanEnd(DragEndDetails details) {
+    if (_currentEraserPath != null) {
+      setState(() {
+        _eraserPaths.add(_currentEraserPath!);
+        _currentEraserPath = null;
       });
     }
   }
@@ -383,6 +444,8 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
               _toolButton(Icons.brush, 'Pen', _EditorTool.pen),
               const SizedBox(width: 4),
               _toolButton(Icons.text_fields, 'Text', _EditorTool.text),
+              const SizedBox(width: 4),
+              _toolButton(Icons.auto_fix_high, 'Erase', _EditorTool.erase),
               const Spacer(),
               if (_paths.isNotEmpty || _texts.isNotEmpty)
                 IconButton(
@@ -396,6 +459,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
                   onPressed: () {
                     setState(() {
                       _paths.clear();
+                      _eraserPaths.clear();
                       _texts.clear();
                     });
                   },
@@ -480,6 +544,29 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
               ),
             ),
           ],
+          if (_activeTool == _EditorTool.erase) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.line_weight, size: 18),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Slider(
+                      value: _penWidth,
+                      min: 2,
+                      max: 40,
+                      divisions: 19,
+                      label: _penWidth.round().toString(),
+                      onChanged: (v) => setState(() => _penWidth = v),
+                    ),
+                  ),
+                  Text('${_penWidth.round()}'),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -551,10 +638,12 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   void _undo() {
     setState(() {
       if (_texts.isNotEmpty &&
-          (_paths.isEmpty ||
+          (_paths.isEmpty && _eraserPaths.isEmpty ||
               _texts.last.position.dy >
                   (_paths.isNotEmpty ? _paths.last.points.last.dy : 0))) {
         _texts.removeLast();
+      } else if (_eraserPaths.isNotEmpty) {
+        _eraserPaths.removeLast();
       } else if (_paths.isNotEmpty) {
         _paths.removeLast();
       }
@@ -566,16 +655,25 @@ class _EditorPainter extends CustomPainter {
   final ui.Image? sourceImage;
   final List<_DrawingPath> paths;
   final _DrawingPath? currentPath;
+  final List<_DrawingPath> eraserPaths;
+  final _DrawingPath? currentEraserPath;
 
   _EditorPainter({
     required this.sourceImage,
     required this.paths,
     this.currentPath,
+    this.eraserPaths = const [],
+    this.currentEraserPath,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (sourceImage != null) {
+      final hasErase = eraserPaths.isNotEmpty || currentEraserPath != null;
+      if (hasErase) {
+        canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
+      }
+
       final paint = Paint()..filterQuality = FilterQuality.high;
       canvas.drawImageRect(
         sourceImage!,
@@ -584,6 +682,16 @@ class _EditorPainter extends CustomPainter {
         Rect.fromLTWH(0, 0, size.width, size.height),
         paint,
       );
+
+      if (hasErase) {
+        for (final path in eraserPaths) {
+          _drawEraserPath(canvas, path);
+        }
+        if (currentEraserPath != null) {
+          _drawEraserPath(canvas, currentEraserPath!);
+        }
+        canvas.restore();
+      }
     }
 
     for (final path in paths) {
@@ -592,6 +700,22 @@ class _EditorPainter extends CustomPainter {
     if (currentPath != null) {
       _drawPath(canvas, currentPath!);
     }
+  }
+
+  void _drawEraserPath(Canvas canvas, _DrawingPath path) {
+    if (path.points.length < 2) return;
+    final paint = Paint()
+      ..blendMode = BlendMode.clear
+      ..strokeWidth = path.strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final uiPath = Path();
+    uiPath.moveTo(path.points[0].dx, path.points[0].dy);
+    for (int i = 1; i < path.points.length; i++) {
+      uiPath.lineTo(path.points[i].dx, path.points[i].dy);
+    }
+    canvas.drawPath(uiPath, paint);
   }
 
   void _drawPath(Canvas canvas, _DrawingPath path) {

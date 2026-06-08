@@ -36,6 +36,11 @@ public final class GeneratedPluginRegistrant {
       Log.e(TAG, "Error registering plugin firebase_core, io.flutter.plugins.firebase.core.FlutterFirebaseCorePlugin", e);
     }
     try {
+      flutterEngine.getPlugins().add(new io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin firebase_messaging, io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingPlugin", e);
+    }
+    try {
       flutterEngine.getPlugins().add(new io.flutter.plugins.firebase.storage.FlutterFirebaseStoragePlugin());
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin firebase_storage, io.flutter.plugins.firebase.storage.FlutterFirebaseStoragePlugin", e);
@@ -74,11 +79,6 @@ public final class GeneratedPluginRegistrant {
       flutterEngine.getPlugins().add(new com.ryanheise.just_audio.JustAudioPlugin());
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin just_audio, com.ryanheise.just_audio.JustAudioPlugin", e);
-    }
-    try {
-      flutterEngine.getPlugins().add(new com.onesignal.flutter.OneSignalPlugin());
-    } catch (Exception e) {
-      Log.e(TAG, "Error registering plugin onesignal_flutter, com.onesignal.flutter.OneSignalPlugin", e);
     }
     try {
       flutterEngine.getPlugins().add(new com.llfbandit.record.RecordPlugin());

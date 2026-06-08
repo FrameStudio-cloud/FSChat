@@ -2,8 +2,6 @@ const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 admin.initializeApp();
 
-const onesignalAppId = '7f9abadb-2c15-4019-80c6-a6d2393dc282';
-
 exports.sendMessageNotification = onDocumentCreated(
   'chats/{chatId}/messages/{messageId}',
   async (event) => {
@@ -27,38 +25,30 @@ exports.sendMessageNotification = onDocumentCreated(
     const recipientSnap = await admin.firestore().doc(`users/${recipientUid}`).get();
     const pushToken = recipientSnap.data()?.pushToken;
     if (!pushToken) {
-      console.log('No pushToken for recipient', recipientUid);
+      console.log('No FCM token for recipient', recipientUid);
       return;
     }
 
-    const apiKey = process.env.ONESIGNAL_REST_KEY;
-    if (!apiKey) {
-      console.log('ONESIGNAL_REST_KEY not set');
-      return;
-    }
-
-    const payload = {
-      app_id: onesignalAppId,
-      target_channel: 'push',
-      include_subscription_ids: [pushToken],
-      headings: { en: senderName },
-      contents: { en: text },
-      data: { chatId, senderId },
-    };
+    const displayText = text ||
+      (message.type === 'image' ? '📷 Photo' :
+       message.type === 'sticker' ? '📦 Sticker' :
+       message.type === 'audio' ? '🎤 Voice message' : '');
 
     try {
-      const response = await fetch('https://api.onesignal.com/notifications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          Authorization: `Key ${apiKey}`,
+      await admin.messaging().send({
+        token: pushToken,
+        notification: {
+          title: senderName,
+          body: displayText,
         },
-        body: JSON.stringify(payload),
+        data: {
+          chatId,
+          senderId,
+        },
       });
-      const result = await response.json();
-      console.log('OneSignal send result:', JSON.stringify(result));
+      console.log('FCM sent to', recipientUid);
     } catch (e) {
-      console.error('OneSignal send failed', e);
+      console.error('FCM send failed', e);
     }
   }
 );

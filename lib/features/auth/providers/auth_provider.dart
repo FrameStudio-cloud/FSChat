@@ -106,10 +106,7 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _ensureUserExists(User user, [String? displayName]) async {
     final existing = await _databaseService.getUser(user.uid);
-    String? pushToken;
-    try {
-      pushToken = NotificationService.getUserId();
-    } catch (_) {}
+    final pushToken = NotificationService.getPushToken();
 
     final name = displayName ?? user.displayName;
     if (existing == null) {

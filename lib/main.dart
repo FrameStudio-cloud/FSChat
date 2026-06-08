@@ -38,9 +38,9 @@ class _SplashAppState extends State<SplashApp> {
     }
 
     try {
-      await NotificationService.init('7f9abadb-2c15-4019-80c6-a6d2393dc282');
+      await NotificationService.init();
     } catch (e) {
-      debugPrint('OneSignal init failed: $e');
+      debugPrint('Notification init failed: $e');
     }
 
     final themeProvider = ThemeProvider();

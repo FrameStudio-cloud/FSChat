@@ -145,11 +145,8 @@ class _ChatScreenState extends State<ChatScreen> {
         senderId: uid,
         text: text,
         replyToId: replyTo?.id,
-        replyToText: replyTo?.text.isNotEmpty == true
-            ? replyTo!.text
-            : replyTo?.type == 'image'
-                ? '📷 Photo'
-                : '🎤 Voice message',
+        replyToText: _replyPreviewText(replyTo),
+        replyToSenderName: _replySenderName(replyTo),
       );
       _textController.clear();
     } catch (e) {
@@ -163,6 +160,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildReplyPreview() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final replyTo = _replyingTo;
+    final previewText = _replyPreviewText(replyTo);
+    final senderName = _replySenderName(replyTo);
     return Container(
       color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF0F0F0),
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
@@ -183,7 +183,7 @@ class _ChatScreenState extends State<ChatScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Reply',
+                  senderName != null ? 'Reply to $senderName' : 'Reply',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -191,11 +191,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 Text(
-                  _replyingTo?.text.isNotEmpty == true
-                      ? _replyingTo!.text
-                      : _replyingTo?.type == 'image'
-                          ? '📷 Photo'
-                          : '🎤 Voice message',
+                  previewText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -213,6 +209,28 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  String _replyPreviewText(Message? msg) {
+    if (msg == null) return '';
+    if (msg.text.isNotEmpty) return msg.text;
+    switch (msg.type) {
+      case 'image':
+        return '📷 Photo';
+      case 'sticker':
+        return '📦 Sticker';
+      case 'audio':
+        return '🎤 Voice message';
+      default:
+        return '';
+    }
+  }
+
+  String? _replySenderName(Message? replyTo) {
+    if (replyTo == null) return null;
+    final uid = context.read<AuthProvider>().user!.uid;
+    if (replyTo.senderId == uid) return 'You';
+    return _otherUser?.name;
   }
 
   void _showMessageMenu(Message msg, Offset pos) {
@@ -414,13 +432,8 @@ class _ChatScreenState extends State<ChatScreen> {
         type: 'sticker',
         mediaUrl: url,
         replyToId: replyTo?.id,
-        replyToText: replyTo != null
-            ? (replyTo.text.isNotEmpty
-                ? replyTo.text
-                : replyTo.type == 'image'
-                    ? '📷 Photo'
-                    : '🎤 Voice message')
-            : null,
+        replyToText: _replyPreviewText(replyTo),
+        replyToSenderName: _replySenderName(replyTo),
       );
 
       try {
@@ -595,13 +608,8 @@ class _ChatScreenState extends State<ChatScreen> {
         type: 'image',
         mediaUrl: url,
         replyToId: replyTo?.id,
-        replyToText: replyTo != null
-            ? (replyTo.text.isNotEmpty
-                ? replyTo.text
-                : replyTo.type == 'image'
-                    ? '📷 Photo'
-                    : '🎤 Voice message')
-            : null,
+        replyToText: _replyPreviewText(replyTo),
+        replyToSenderName: _replySenderName(replyTo),
       );
     } catch (e) {
       if (mounted) {
@@ -629,13 +637,8 @@ class _ChatScreenState extends State<ChatScreen> {
         type: 'image',
         mediaUrl: url,
         replyToId: replyTo?.id,
-        replyToText: replyTo != null
-            ? (replyTo.text.isNotEmpty
-                ? replyTo.text
-                : replyTo.type == 'image'
-                    ? '📷 Photo'
-                    : '🎤 Voice message')
-            : null,
+        replyToText: _replyPreviewText(replyTo),
+        replyToSenderName: _replySenderName(replyTo),
       );
     } catch (e) {
       if (mounted) {
@@ -883,13 +886,8 @@ class _ChatScreenState extends State<ChatScreen> {
         mediaUrl: url,
         duration: duration,
         replyToId: replyTo?.id,
-        replyToText: replyTo != null
-            ? (replyTo.text.isNotEmpty
-                ? replyTo.text
-                : replyTo.type == 'image'
-                    ? '📷 Photo'
-                    : '🎤 Voice message')
-            : null,
+        replyToText: _replyPreviewText(replyTo),
+        replyToSenderName: _replySenderName(replyTo),
       );
     } finally {
       if (mounted) setState(() => _isUploading = false);
