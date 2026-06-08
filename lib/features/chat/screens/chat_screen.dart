@@ -11,8 +11,13 @@ import '../../auth/models/user_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../shared/models/menu_action.dart';
+import '../../../shared/widgets/image_editor_screen.dart';
 import '../models/message_model.dart';
+import '../models/sticker_model.dart';
+import '../services/sticker_service.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/sticker_picker.dart';
+import '../widgets/sticker_suggestion_bar.dart';
 import 'user_info_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -40,6 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final Stopwatch _recordStopwatch = Stopwatch();
   Message? _replyingTo;
   String? _mentionQuery;
+  String? _stickerQuery;
   List<ChatUser> _mentionUsers = [];
   StreamSubscription<List<ChatUser>>? _mentionSubscription;
   String? _currentUid;
@@ -110,6 +116,18 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
     if (_mentionQuery != null) setState(() => _mentionQuery = null);
+
+    final words = text.split(' ');
+    if (words.length >= 1) {
+      final lastWord = words.last.toLowerCase();
+      if (lastWord.length >= 2) {
+        if (_stickerQuery != lastWord) setState(() => _stickerQuery = lastWord);
+      } else {
+        if (_stickerQuery != null) setState(() => _stickerQuery = null);
+      }
+    } else {
+      if (_stickerQuery != null) setState(() => _stickerQuery = null);
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -347,6 +365,78 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _showStickerPicker() {
+    _hideKeyboard();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StickerPicker(
+        onStickerSelected: (sticker) {
+          Navigator.pop(ctx);
+          _sendSticker(sticker);
+        },
+      ),
+    );
+  }
+
+  Future<void> _sendSticker(Sticker sticker) async {
+    setState(() => _isUploading = true);
+    try {
+      final uid = context.read<AuthProvider>().user!.uid;
+      final msgId = _uuid.v4();
+
+      final dir = Directory.systemTemp;
+      final filePath =
+          '${dir.path}/sticker_${sticker.packId}_${sticker.id}.png';
+
+      if (sticker.packId == 'my_stickers' && sticker.localPath != null) {
+        final src = File(sticker.localPath!);
+        if (await src.exists()) {
+          await src.copy(filePath);
+        }
+      } else {
+        final bytes = await StickerService.renderBuiltInStickerToBytes(
+          sticker.packId,
+          sticker.id,
+        );
+        await File(filePath).writeAsBytes(bytes);
+      }
+
+      final url = await _db.uploadImage(chatId, msgId, filePath);
+      final replyTo = _replyingTo;
+      setState(() => _replyingTo = null);
+      await _db.sendMessage(
+        chatId: chatId,
+        senderId: uid,
+        text: '',
+        type: 'sticker',
+        mediaUrl: url,
+        replyToId: replyTo?.id,
+        replyToText: replyTo != null
+            ? (replyTo.text.isNotEmpty
+                ? replyTo.text
+                : replyTo.type == 'image'
+                    ? '📷 Photo'
+                    : '🎤 Voice message')
+            : null,
+      );
+
+      try {
+        await File(filePath).delete();
+      } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send sticker: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
   void _showAttachmentSheet() {
     _hideKeyboard();
     showModalBottomSheet(
@@ -455,6 +545,24 @@ class _ChatScreenState extends State<ChatScreen> {
                     onPressed: () => Navigator.pop(ctx, false),
                     child: const Text('Cancel'),
                   ),
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      final editedPath = await Navigator.push<String>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ImageEditorScreen(
+                            sourcePath: file.path,
+                            outputSize: const Size(512, 512),
+                          ),
+                        ),
+                      );
+                      if (editedPath != null && mounted) {
+                        _sendEditedImage(File(editedPath));
+                      }
+                    },
+                    child: const Text('Edit'),
+                  ),
                   const SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(ctx, true),
@@ -499,6 +607,40 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _sendEditedImage(File editedFile) async {
+    setState(() => _isUploading = true);
+    try {
+      final uid = context.read<AuthProvider>().user!.uid;
+      final msgId = _uuid.v4();
+      final url = await _db.uploadImage(chatId, msgId, editedFile.path);
+      final replyTo = _replyingTo;
+      setState(() => _replyingTo = null);
+      await _db.sendMessage(
+        chatId: chatId,
+        senderId: uid,
+        text: '',
+        type: 'image',
+        mediaUrl: url,
+        replyToId: replyTo?.id,
+        replyToText: replyTo != null
+            ? (replyTo.text.isNotEmpty
+                ? replyTo.text
+                : replyTo.type == 'image'
+                    ? '📷 Photo'
+                    : '🎤 Voice message')
+            : null,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send edited image: $e')),
         );
       }
     } finally {
@@ -874,6 +1016,14 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           if (_replyingTo != null) _buildReplyPreview(),
           _buildMentionSuggestions(),
+          if (_stickerQuery != null)
+            StickerSuggestionBar(
+              query: _stickerQuery!,
+              onStickerSelected: (sticker) {
+                setState(() => _stickerQuery = null);
+                _sendSticker(sticker);
+              },
+            ),
           _buildInputBar(),
         ],
       ),
@@ -907,6 +1057,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   icon: const Icon(Icons.add_circle_outline,
                       color: Color(0xFF075E54)),
                   onPressed: _showAttachmentSheet,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.emoji_emotions_outlined,
+                      color: Color(0xFF075E54)),
+                  onPressed: _showStickerPicker,
                 ),
                 Expanded(
                   child: TextField(

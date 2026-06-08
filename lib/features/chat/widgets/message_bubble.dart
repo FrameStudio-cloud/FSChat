@@ -81,6 +81,7 @@ class MessageBubble extends StatelessWidget {
         switch (message.type) {
           'image' => _ImageContent(message: message, isOwn: isOwn),
           'audio' => _AudioContent(message: message, isOwn: isOwn),
+          'sticker' => _StickerContent(message: message, isOwn: isOwn),
           _ => _TextContent(message: message, isOwn: isOwn),
         },
       ],
@@ -419,6 +420,52 @@ class _AudioContentState extends State<_AudioContent> {
               ],
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StickerContent extends StatelessWidget {
+  final Message message;
+  final bool isOwn;
+  const _StickerContent({required this.message, required this.isOwn});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              message.mediaUrl ?? '',
+              width: 150,
+              height: 150,
+              fit: BoxFit.cover,
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  width: 150,
+                  height: 150,
+                  color: Colors.grey[100],
+                  child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                );
+              },
+              errorBuilder: (_, __, ___) => Container(
+                width: 150,
+                height: 150,
+                color: Colors.grey[100],
+                child: const Center(
+                    child: Text('😕', style: TextStyle(fontSize: 40))),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _MetaRow(message: message, isOwn: isOwn),
         ],
       ),
     );

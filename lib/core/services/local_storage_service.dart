@@ -21,6 +21,50 @@ class LocalStorageService {
     _appDir = '${docDir.path}/fschat';
     await Directory('$_appDir/wallpapers').create(recursive: true);
     await Directory('$_appDir/cache').create(recursive: true);
+    await Directory('$_appDir/stickers').create(recursive: true);
+  }
+
+  String get stickersDir => '$_appDir/stickers';
+
+  Future<String> saveStickerToPack(
+      String packId, String stickerId, String sourcePath) async {
+    final dir = Directory('$stickersDir/$packId');
+    await dir.create(recursive: true);
+    final target = '${dir.path}/$stickerId.jpg';
+    final file = await FlutterImageCompress.compressAndGetFile(
+      sourcePath,
+      target,
+      quality: 80,
+      minWidth: 256,
+      minHeight: 256,
+    );
+    return file?.path ?? target;
+  }
+
+  Future<String> stickerLocalPath(String packId, String stickerId) async {
+    final path = '$stickersDir/$packId/$stickerId.png';
+    return path;
+  }
+
+  Future<List<String>> listStickerPackIds() async {
+    final dir = Directory(stickersDir);
+    if (!await dir.exists()) return [];
+    return dir
+        .listSync()
+        .whereType<Directory>()
+        .map((d) => d.path.split(Platform.pathSeparator).last)
+        .toList();
+  }
+
+  Future<List<String>> listStickersInPack(String packId) async {
+    final dir = Directory('$stickersDir/$packId');
+    if (!await dir.exists()) return [];
+    return dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.jpg'))
+        .map((f) => f.path)
+        .toList();
   }
 
   String get wallpaperPath => '$_appDir/wallpapers/current.jpg';
