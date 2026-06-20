@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/tip_service.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -50,7 +51,9 @@ class AboutScreen extends StatelessWidget {
               Icons.info_outline,
               theme),
           const SizedBox(height: 16),
-          _infoRow('Version', '1.0.0', theme),
+          _tipsSection(context, theme),
+          const SizedBox(height: 16),
+          _infoRow('Version', '1.1.0', theme),
           _infoRow('Developer', 'Frames Studio', theme),
           _infoRow('Built with', 'Flutter 3.41.6 · Firebase', theme),
         ],
@@ -65,7 +68,7 @@ class AboutScreen extends StatelessWidget {
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: const Color(0xFF075E54),
+            color: const Color(0xFFE65100),
             borderRadius: BorderRadius.circular(18),
           ),
           child: const Center(
@@ -100,7 +103,7 @@ class AboutScreen extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: const Color(0xFF075E54)),
+                Icon(icon, size: 20, color: const Color(0xFFE65100)),
                 const SizedBox(width: 8),
                 Text(title,
                     style: const TextStyle(
@@ -115,6 +118,60 @@ class AboutScreen extends StatelessWidget {
                   fontSize: 13.5,
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
                   height: 1.5,
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tipsSection(BuildContext context, ThemeData theme) {
+    final tips =
+        List.generate(TipService.tipCount, (i) => '• ${TipService.tipAt(i)}');
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.lightbulb_outline,
+                    size: 20, color: Color(0xFFE65100)),
+                const SizedBox(width: 8),
+                const Text('Tips',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    )),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    TipService.reset();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Tips reset — they will show again')),
+                    );
+                  },
+                  child: Text('Reset',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.primary,
+                      )),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...tips.map((t) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(t,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                        height: 1.4,
+                      )),
                 )),
           ],
         ),

@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/services/database_service.dart';
+import '../../../shared/utils/avatar_helper.dart';
 import '../../auth/models/user_model.dart';
 import 'about_screen.dart';
 
@@ -106,17 +107,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => _changePhoto(user.uid),
                 child: Stack(
                   children: [
-                    CircleAvatar(
+                    avatarWidget(
                       radius: 36,
-                      backgroundColor: const Color(0xFF075E54),
-                      backgroundImage: user.photoUrl.isNotEmpty
-                          ? NetworkImage(user.photoUrl)
-                          : null,
-                      child: user.photoUrl.isEmpty
-                          ? Text(user.name[0].toUpperCase(),
-                              style: const TextStyle(
-                                  fontSize: 28, color: Colors.white))
-                          : null,
+                      photoUrl: user.photoUrl,
+                      name: user.name,
                     ),
                     Positioned(
                       bottom: 0,
@@ -124,7 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
-                          color: Color(0xFF075E54),
+                          color: Color(0xFFE65100),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.camera_alt,
@@ -164,7 +158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
-          leading: const Icon(Icons.info_outline, color: Color(0xFF075E54)),
+          leading: const Icon(Icons.info_outline, color: Color(0xFFE65100)),
           title: const Text('Bio', style: TextStyle(fontSize: 14)),
           subtitle: Text(
             user.bio.isNotEmpty ? user.bio : 'Tap to add bio',

@@ -168,6 +168,7 @@ lib/
 - iOS build requires Mac
 
 ## Bugs fixed
+- **Chat reactions don't show on user's own screen after tapping**: `onReact` callback in `MessageBubble` was typed as `void Function(String emoji)?` causing the `db.toggleReaction()` Future to be unawaited. Fixed: changed to `Future<void> Function(String emoji)?`, made overlay `onTap` async with `await`, added try/catch with SnackBar error feedback in `chat_screen.dart`. `message_bubble.dart:17`, `chat_screen.dart:1075`.
 - **Dark mode not persisting**: ThemeProvider was instantiated twice (once in `_init()`, once in `MultiProvider`). Fixed: use `ChangeNotifierProvider.value` with the loaded instance. `main.dart:60`.
 - **Reply stale on image/voice send**: `_replyingTo` only cleared in `_sendMessage()`. Fixed: capture to local var + clear before await in `_sendMessage`, `_pickImage`, and `_stopRecordingAndSend`. `chat_screen.dart`.
 - **All users show online permanently**: No `WidgetsBindingObserver` → online never set to false on background. Fixed: `AuthProvider` now extends `ChangeNotifier with WidgetsBindingObserver`, flips online in `didChangeAppLifecycleState`. `auth_provider.dart`.

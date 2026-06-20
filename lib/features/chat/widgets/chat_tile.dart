@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/chat_model.dart';
 import '../../auth/models/user_model.dart';
+import '../../../shared/utils/avatar_helper.dart';
 
 class ChatTile extends StatelessWidget {
   final Chat chat;
-  final ChatUser otherUser;
+  final ChatUser? otherUser;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final int unreadCount;
 
   const ChatTile({
     super.key,
@@ -14,10 +16,16 @@ class ChatTile extends StatelessWidget {
     required this.otherUser,
     required this.onTap,
     this.onLongPress,
+    this.unreadCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
+    final name = chat.isGroup
+        ? (chat.groupName ?? 'Group')
+        : (otherUser?.name ?? 'User');
+    final photo = chat.isGroup ? chat.groupPhoto : otherUser?.photoUrl;
+
     return GestureDetector(
       onLongPress: onLongPress,
       child: ListTile(
@@ -27,24 +35,17 @@ class ChatTile extends StatelessWidget {
           height: 52,
           child: Stack(
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: const Color(0xFF075E54),
-                backgroundImage: otherUser.photoUrl.isNotEmpty
-                    ? NetworkImage(otherUser.photoUrl)
-                    : null,
-                child: otherUser.photoUrl.isEmpty
-                    ? Text(
-                        otherUser.name[0].toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      )
-                    : null,
-              ),
-              if (otherUser.online)
+              if (chat.isGroup)
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor:
+                      const Color(0xFFE65100).withValues(alpha: 0.2),
+                  child: Icon(Icons.group_rounded,
+                      color: const Color(0xFFE65100), size: 28),
+                )
+              else
+                avatarWidget(radius: 26, photoUrl: photo, name: name),
+              if (!chat.isGroup && (otherUser?.online ?? false))
                 Positioned(
                   right: 2,
                   bottom: 2,
@@ -61,16 +62,29 @@ class ChatTile extends StatelessWidget {
             ],
           ),
         ),
-        title: Text(
-          otherUser.name,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+        title: Row(
+          children: [
+            if (chat.isGroup)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(Icons.group_rounded,
+                    size: 16, color: Colors.grey[500]),
+              ),
+            Text(name,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+          ],
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
           child: Text(
             chat.lastMessage.isNotEmpty
-                ? (chat.lastMessageSender == otherUser.uid ? '' : 'You: ') +
-                    chat.lastMessage
+                ? (chat.isGroup
+                    ? chat.lastMessage
+                    : (chat.lastMessageSender == otherUser?.uid
+                            ? ''
+                            : 'You: ') +
+                        chat.lastMessage)
                 : 'No messages yet',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -99,6 +113,22 @@ class ChatTile extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 4),
+            if (unreadCount > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF25D366),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  unreadCount > 99 ? '99+' : unreadCount.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
           ],
         ),
         onTap: onTap,

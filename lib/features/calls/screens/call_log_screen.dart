@@ -16,12 +16,12 @@ class CallLogScreen extends StatelessWidget {
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF075E54).withValues(alpha: 0.1),
+                color: const Color(0xFFE65100).withValues(alpha: 0.1),
               ),
               child: Icon(
                 Icons.phone_in_talk_rounded,
                 size: 48,
-                color: const Color(0xFF075E54).withValues(alpha: 0.4),
+                color: const Color(0xFFE65100).withValues(alpha: 0.4),
               ),
             ),
             const SizedBox(height: 24),

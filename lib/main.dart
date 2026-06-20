@@ -6,8 +6,14 @@ import 'core/providers/theme_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/chat/screens/chat_screen.dart';
+import 'features/chat/screens/create_group_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
+import 'features/blog/providers/blog_provider.dart';
+import 'features/blog/screens/blog_post_screen.dart';
+import 'features/blog/screens/blog_editor_screen.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/isar_service.dart';
+import 'core/theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +49,12 @@ class _SplashAppState extends State<SplashApp> {
       debugPrint('Notification init failed: $e');
     }
 
+    try {
+      await IsarService.init();
+    } catch (e) {
+      debugPrint('Isar init failed: $e');
+    }
+
     final themeProvider = ThemeProvider();
     await themeProvider.loadPreference();
 
@@ -63,6 +75,7 @@ class _SplashAppState extends State<SplashApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => BlogProvider()),
         ChangeNotifierProvider.value(value: _themeProvider!),
       ],
       child: const MyApp(),
@@ -78,7 +91,7 @@ class _SplashScreen extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: const Color(0xFF075E54),
+        backgroundColor: const Color(0xFFE65100),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -109,26 +122,32 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.handlePendingInitialMessage();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
         return MaterialApp(
+          navigatorKey: NotificationService.navigatorKey,
           title: 'FSChat',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorSchemeSeed: const Color(0xFF075E54),
-            brightness: Brightness.light,
-            useMaterial3: true,
-          ),
-          darkTheme: ThemeData(
-            colorSchemeSeed: const Color(0xFF075E54),
-            brightness: Brightness.dark,
-            useMaterial3: true,
-          ),
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
           themeMode: themeProvider.themeMode,
           onGenerateRoute: (settings) {
             switch (settings.name) {
@@ -140,6 +159,23 @@ class MyApp extends StatelessWidget {
               case '/settings':
                 return MaterialPageRoute(
                   builder: (_) => const SettingsScreen(),
+                  settings: settings,
+                );
+              case '/blog/post':
+                final args = settings.arguments as Map<String, dynamic>;
+                return MaterialPageRoute(
+                  builder: (_) =>
+                      BlogPostScreen(postId: args['postId'] as String),
+                  settings: settings,
+                );
+              case '/blog/create':
+                return MaterialPageRoute(
+                  builder: (_) => const BlogEditorScreen(),
+                  settings: settings,
+                );
+              case '/create_group':
+                return MaterialPageRoute(
+                  builder: (_) => const CreateGroupScreen(),
                   settings: settings,
                 );
             }

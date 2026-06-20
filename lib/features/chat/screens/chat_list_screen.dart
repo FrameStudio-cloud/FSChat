@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../../../core/services/database_service.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/menu_action.dart';
+import '../../../shared/utils/avatar_helper.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import '../widgets/chat_tile.dart';
@@ -25,22 +27,10 @@ class ChatListScreen extends StatelessWidget {
             if (chatUser != null)
               Stack(
                 children: [
-                  CircleAvatar(
+                  avatarWidget(
                     radius: 16,
-                    backgroundColor: const Color(0xFF075E54),
-                    backgroundImage: chatUser.photoUrl.isNotEmpty
-                        ? NetworkImage(chatUser.photoUrl)
-                        : null,
-                    child: chatUser.photoUrl.isEmpty
-                        ? Text(
-                            chatUser.name[0].toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          )
-                        : null,
+                    photoUrl: chatUser.photoUrl,
+                    name: chatUser.name,
                   ),
                 ],
               ),
@@ -49,10 +39,64 @@ class ChatListScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
-            tooltip: 'Settings',
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (value) async {
+              switch (value) {
+                case 'settings':
+                  Navigator.pushNamed(context, '/settings');
+                case 'mark_read':
+                  final db = DatabaseService();
+                  await db.markAllChatsRead(currentUid);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('All chats marked as read'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                case 'archive':
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No archived chats'),
+                      behavior: SnackBarBehavior.floating,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  leading: Icon(Icons.settings_rounded),
+                  title: Text('Settings'),
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'archive',
+                child: ListTile(
+                  leading: Icon(Icons.archive_outlined),
+                  title: Text('Archive'),
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'mark_read',
+                child: ListTile(
+                  leading:
+                      Icon(Icons.done_all_rounded, color: AppColors.online),
+                  title: const Text('Mark all read'),
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -78,16 +122,10 @@ class ChatListScreen extends StatelessWidget {
             ),
             itemBuilder: (context, index) {
               final chat = chats[index];
-              final otherUid =
-                  chat.participants.firstWhere((p) => p != currentUid);
 
-              return StreamBuilder(
-                stream: db.userStream(otherUid),
-                builder: (_, userSnap) {
-                  final otherUser = userSnap.data;
-                  if (otherUser == null) return const SizedBox();
-
-                  return Dismissible(
+              if (chat.isGroup) {
+                return RepaintBoundary(
+                  child: Dismissible(
                     key: Key(chat.id),
                     direction: DismissDirection.endToStart,
                     background: Container(
@@ -102,8 +140,8 @@ class ChatListScreen extends StatelessWidget {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           title: const Text('Delete chat'),
-                          content: Text(
-                              'Delete conversation with ${otherUser.name}?'),
+                          content:
+                              Text('Delete the group "${chat.groupName}"?'),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
@@ -119,24 +157,102 @@ class ChatListScreen extends StatelessWidget {
                       );
                     },
                     onDismissed: (_) => db.deleteChat(chat.id),
-                    child: ChatTile(
-                      chat: chat,
-                      otherUser: otherUser,
-                      onTap: () {
-                        Navigator.pushNamed(
-                          context,
-                          '/chat',
-                          arguments: {
-                            'chatId': chat.id,
-                            'otherUser': otherUser,
+                    child: StreamBuilder<int>(
+                      stream: db.unreadCountStream(chat.id, currentUid),
+                      builder: (_, unreadSnap) {
+                        final unreadCount = unreadSnap.data ?? 0;
+                        return ChatTile(
+                          chat: chat,
+                          otherUser: null,
+                          unreadCount: unreadCount,
+                          onTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              '/chat',
+                              arguments: {
+                                'chatId': chat.id,
+                                'isGroup': true,
+                                'groupName': chat.groupName,
+                                'groupPhoto': chat.groupPhoto,
+                              },
+                            );
                           },
+                          onLongPress: () => _showGroupMenu(context, chat, db),
                         );
                       },
-                      onLongPress: () =>
-                          _showChatMenu(context, chat, otherUser, db),
                     ),
-                  );
-                },
+                  ),
+                );
+              }
+
+              final otherUid =
+                  chat.participants.firstWhere((p) => p != currentUid);
+
+              return RepaintBoundary(
+                child: StreamBuilder(
+                  stream: db.userStream(otherUid),
+                  builder: (_, userSnap) {
+                    final otherUser = userSnap.data;
+                    if (otherUser == null) return const SizedBox();
+
+                    return Dismissible(
+                      key: Key(chat.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 24),
+                        color: Colors.red,
+                        child: const Icon(Icons.delete_rounded,
+                            color: Colors.white, size: 28),
+                      ),
+                      confirmDismiss: (_) async {
+                        return await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete chat'),
+                            content: Text(
+                                'Delete conversation with ${otherUser.name}?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Delete',
+                                    style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      onDismissed: (_) => db.deleteChat(chat.id),
+                      child: StreamBuilder<int>(
+                        stream: db.unreadCountStream(chat.id, currentUid),
+                        builder: (_, unreadSnap) {
+                          final unreadCount = unreadSnap.data ?? 0;
+                          return ChatTile(
+                            chat: chat,
+                            otherUser: otherUser,
+                            unreadCount: unreadCount,
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/chat',
+                                arguments: {
+                                  'chatId': chat.id,
+                                  'otherUser': otherUser,
+                                },
+                              );
+                            },
+                            onLongPress: () =>
+                                _showChatMenu(context, chat, otherUser, db),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
               );
             },
           );
@@ -144,7 +260,7 @@ class ChatListScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showNewChatDialog(context, db, currentUid),
-        backgroundColor: const Color(0xFF075E54),
+        backgroundColor: const Color(0xFFE65100),
         foregroundColor: Colors.white,
         child: const Icon(Icons.message_rounded),
       ),
@@ -165,7 +281,7 @@ class ChatListScreen extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF075E54).withValues(alpha: 0.2),
+                  const Color(0xFFE65100).withValues(alpha: 0.2),
                   const Color(0xFF25D366).withValues(alpha: 0.1),
                 ],
               ),
@@ -173,7 +289,7 @@ class ChatListScreen extends StatelessWidget {
             child: Icon(
               Icons.chat_bubble_outline_rounded,
               size: 60,
-              color: const Color(0xFF075E54).withValues(alpha: 0.4),
+              color: const Color(0xFFE65100).withValues(alpha: 0.4),
             ),
           ),
           const SizedBox(height: 24),
@@ -219,7 +335,7 @@ class ChatListScreen extends StatelessWidget {
             ListTile(
               leading: Icon(
                 chat.pinned ? Icons.push_pin_outlined : Icons.push_pin,
-                color: const Color(0xFF075E54),
+                color: const Color(0xFFE65100),
               ),
               title: Text(chat.pinned ? 'Unpin chat' : 'Pin chat'),
               onTap: () {
@@ -230,6 +346,56 @@ class ChatListScreen extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.delete_rounded, color: Colors.red),
               title: const Text('Delete chat',
+                  style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                db.deleteChat(chat.id);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showGroupMenu(BuildContext context, Chat chat, DatabaseService db) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.info_outline_rounded,
+                  color: Color(0xFFE65100)),
+              title: const Text('Group info'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pushNamed(context, '/chat', arguments: {
+                  'chatId': chat.id,
+                  'isGroup': true,
+                  'groupName': chat.groupName,
+                  'groupPhoto': chat.groupPhoto,
+                });
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_rounded, color: Colors.red),
+              title: const Text('Delete group',
                   style: TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -320,6 +486,25 @@ class _NewChatSheetState extends State<_NewChatSheet> {
                 ),
           ),
         ),
+        ListTile(
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE65100).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child:
+                const Icon(Icons.group_add_rounded, color: Color(0xFFE65100)),
+          ),
+          title: const Text('New group',
+              style: TextStyle(fontWeight: FontWeight.w500)),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.pushNamed(context, '/create_group');
+          },
+        ),
+        const Divider(indent: 72, endIndent: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: TextField(
@@ -372,22 +557,10 @@ class _NewChatSheetState extends State<_NewChatSheet> {
                 itemBuilder: (_, i) {
                   final user = filtered[i];
                   return ListTile(
-                    leading: CircleAvatar(
+                    leading: avatarWidget(
                       radius: 24,
-                      backgroundColor: const Color(0xFF075E54),
-                      backgroundImage: user.photoUrl.isNotEmpty
-                          ? NetworkImage(user.photoUrl)
-                          : null,
-                      child: user.photoUrl.isEmpty
-                          ? Text(
-                              user.name[0].toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            )
-                          : null,
+                      photoUrl: user.photoUrl,
+                      name: user.name,
                     ),
                     title: Text(
                       user.name,

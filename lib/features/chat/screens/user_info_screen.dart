@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/database_service.dart';
+import '../../../shared/utils/avatar_helper.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/message_model.dart';
@@ -98,17 +100,10 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                 : null,
             child: Hero(
               tag: 'avatar_${user.uid}',
-              child: CircleAvatar(
+              child: avatarWidget(
                 radius: 56,
-                backgroundColor: const Color(0xFF075E54),
-                backgroundImage: user.photoUrl.isNotEmpty
-                    ? NetworkImage(user.photoUrl)
-                    : null,
-                child: user.photoUrl.isEmpty
-                    ? Text(user.name[0].toUpperCase(),
-                        style:
-                            const TextStyle(fontSize: 40, color: Colors.white))
-                    : null,
+                photoUrl: user.photoUrl,
+                name: user.name,
               ),
             ),
           ),
@@ -210,11 +205,11 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Column(
             children: [
-              Icon(icon, color: const Color(0xFF075E54), size: 28),
+              Icon(icon, color: const Color(0xFFE65100), size: 28),
               const SizedBox(height: 6),
               Text(label,
                   style:
-                      const TextStyle(fontSize: 12, color: Color(0xFF075E54))),
+                      const TextStyle(fontSize: 12, color: Color(0xFFE65100))),
             ],
           ),
         ),
@@ -288,8 +283,8 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                       borderRadius: BorderRadius.circular(8),
                       child: GestureDetector(
                         onTap: () => _showMediaViewer(context, imageUrls, idx),
-                        child: Image.network(
-                          msg.mediaUrl!,
+                        child: CachedNetworkImage(
+                          imageUrl: msg.mediaUrl!,
                           width: 100,
                           height: 100,
                           fit: BoxFit.cover,
@@ -308,7 +303,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.mic,
-                            color: const Color(0xFF075E54), size: 28),
+                            color: const Color(0xFFE65100), size: 28),
                         const SizedBox(height: 4),
                         Text(
                           msg.duration != null ? '${msg.duration}s' : 'Audio',
@@ -342,7 +337,8 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
             controller: PageController(initialPage: initialIndex),
             children: urls
                 .map((url) => InteractiveViewer(
-                      child: Image.network(url, fit: BoxFit.contain),
+                      child: CachedNetworkImage(
+                          imageUrl: url, fit: BoxFit.contain),
                     ))
                 .toList(),
           ),

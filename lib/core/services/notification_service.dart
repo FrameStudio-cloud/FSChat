@@ -4,13 +4,18 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/auth/models/user_model.dart';
+import '../../shared/widgets/notification_banner.dart';
 
 class NotificationService {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
   static FlutterLocalNotificationsPlugin? _localNotifications;
   static StreamSubscription<QuerySnapshot>? _chatSubscription;
+  static String? _currentUid;
   static String? _fcmToken;
+  static Map<String, dynamic>? _pendingInitialMessage;
+
+  static final Map<String, DateTime> _lastNotifiedPerChat = {};
 
   static Future<void> init() async {
     _localNotifications = FlutterLocalNotificationsPlugin();
@@ -36,8 +41,14 @@ class NotificationService {
 
       _fcmToken = await messaging.getToken();
 
+      final initialMessage = await messaging.getInitialMessage();
+      if (initialMessage != null) {
+        _pendingInitialMessage = initialMessage.data;
+      }
+
       messaging.onTokenRefresh.listen((token) {
         _fcmToken = token;
+        _updateTokenInFirestore(token);
       });
 
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
@@ -48,7 +59,23 @@ class NotificationService {
     }
   }
 
+  static void handlePendingInitialMessage() {
+    if (_pendingInitialMessage != null) {
+      _navigateToChat(_pendingInitialMessage!);
+      _pendingInitialMessage = null;
+    }
+  }
+
   static String? getPushToken() => _fcmToken;
+
+  static void _updateTokenInFirestore(String token) {
+    if (_currentUid != null) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUid)
+          .update({'pushToken': token});
+    }
+  }
 
   static void _onForegroundMessage(RemoteMessage message) {
     final data = message.data;
@@ -58,17 +85,15 @@ class NotificationService {
     final ctx = navigatorKey.currentContext;
     if (ctx == null) return;
 
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      SnackBar(
-        content: Text('$title: $body'),
-        duration: const Duration(seconds: 4),
-        action: data['chatId'] != null
-            ? SnackBarAction(
-                label: 'Open',
-                onPressed: () => _navigateToChat(data),
-              )
-            : null,
-      ),
+    NotificationBanner.show(
+      ctx,
+      title: title,
+      body: body,
+      chatId: data['chatId'],
+      senderId: data['senderId'],
+      onTap: (data['chatId'] != null && data['senderId'] != null)
+          ? () => _navigateToChat(data)
+          : null,
     );
   }
 
@@ -80,6 +105,7 @@ class NotificationService {
   }
 
   static void startListening(String uid) {
+    _currentUid = uid;
     _chatSubscription?.cancel();
     final db = FirebaseFirestore.instance;
     _chatSubscription = db
@@ -91,14 +117,23 @@ class NotificationService {
         if (change.type == DocumentChangeType.modified) {
           final data = change.doc.data()!;
           final lastSender = data['lastMessageSender'] as String?;
-          if (lastSender != null && lastSender != uid) {
-            final lastMsg = data['lastMessage'] as String? ?? '';
-            final chatId = change.doc.id;
-            final userDoc = await db.collection('users').doc(lastSender).get();
-            if (userDoc.exists) {
-              final senderName = userDoc['name'] as String? ?? 'Unknown';
-              _showLocalNotification(chatId, senderName, lastMsg);
-            }
+          if (lastSender == null || lastSender == uid) continue;
+
+          final chatId = change.doc.id;
+          final lastMsg = data['lastMessage'] as String? ?? '';
+
+          final now = DateTime.now();
+          final lastNotified = _lastNotifiedPerChat[chatId];
+          if (lastNotified != null &&
+              now.difference(lastNotified).inSeconds < 3) {
+            continue;
+          }
+          _lastNotifiedPerChat[chatId] = now;
+
+          final userDoc = await db.collection('users').doc(lastSender).get();
+          if (userDoc.exists) {
+            final senderName = userDoc['name'] as String? ?? 'Unknown';
+            _showLocalNotification(chatId, senderName, lastMsg);
           }
         }
       }
@@ -125,11 +160,10 @@ class NotificationService {
 
   static void _onNotificationTap(NotificationResponse response) {
     final chatId = response.payload;
-    if (chatId != null && navigatorKey.currentContext != null) {
-      navigatorKey.currentState?.pushNamed('/chat', arguments: {
-        'chatId': chatId,
-      });
-    }
+    if (chatId == null || navigatorKey.currentContext == null) return;
+    navigatorKey.currentState?.pushNamed('/chat', arguments: {
+      'chatId': chatId,
+    });
   }
 
   static void _navigateToChat(Map<String, dynamic> data) {
@@ -137,14 +171,27 @@ class NotificationService {
     final senderId = data['senderId'] as String?;
     if (chatId == null || senderId == null) return;
 
+    NavigatorState? nav;
+    try {
+      nav = navigatorKey.currentState;
+    } catch (_) {}
+
+    if (nav == null) {
+      _pendingInitialMessage = {'chatId': chatId, 'senderId': senderId};
+      return;
+    }
+
     FirebaseFirestore.instance
         .collection('users')
         .doc(senderId)
         .get()
         .then((doc) {
-      if (!doc.exists) return;
+      if (!doc.exists) {
+        nav?.pushNamed('/chat', arguments: {'chatId': chatId});
+        return;
+      }
       final otherUser = ChatUser.fromMap(doc.data() as Map<String, dynamic>);
-      navigatorKey.currentState?.pushNamed(
+      nav?.pushNamed(
         '/chat',
         arguments: {'chatId': chatId, 'otherUser': otherUser},
       );

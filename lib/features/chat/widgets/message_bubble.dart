@@ -1,8 +1,18 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:http/http.dart' as http;
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../models/message_model.dart';
+import 'reaction_bar.dart';
+import 'reaction_display.dart';
+import '../../../shared/utils/gallery_saver.dart';
 
-class MessageBubble extends StatelessWidget {
+class MessageBubble extends StatefulWidget {
   final Message message;
   final bool isOwn;
   final void Function(Offset globalPosition)? onLongPress;
@@ -10,6 +20,12 @@ class MessageBubble extends StatelessWidget {
   final bool isSelecting;
   final bool isSelected;
   final VoidCallback? onTap;
+  final Future<void> Function(String emoji)? onReact;
+  final String currentUserId;
+  final String searchQuery;
+  final bool isFailed;
+  final VoidCallback? onRetry;
+  final bool isGroup;
 
   const MessageBubble({
     super.key,
@@ -20,84 +36,209 @@ class MessageBubble extends StatelessWidget {
     this.isSelecting = false,
     this.isSelected = false,
     this.onTap,
+    this.onReact,
+    this.currentUserId = '',
+    this.searchQuery = '',
+    this.isFailed = false,
+    this.onRetry,
+    this.isGroup = false,
   });
 
   @override
+  State<MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends State<MessageBubble> {
+  OverlayEntry? _reactionOverlay;
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _reactionOverlay?.remove();
+    _reactionOverlay = null;
+  }
+
+  void _showReactionBar(BuildContext context, Offset globalPosition) {
+    _removeOverlay();
+
+    final overlay = Overlay.of(context);
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final bubblePos = box.localToGlobal(Offset.zero);
+
+    _reactionOverlay = OverlayEntry(
+      builder: (ctx) {
+        return GestureDetector(
+          onTap: _removeOverlay,
+          behavior: HitTestBehavior.translucent,
+          child: Stack(
+            children: [
+              Positioned(
+                left: bubblePos.dx,
+                top: (bubblePos.dy - 56).clamp(8.0, double.infinity),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ReactionBar(
+                    currentEmoji:
+                        widget.message.reactions[widget.currentUserId] ?? '',
+                    onTap: (emoji) async {
+                      await widget.onReact?.call(emoji);
+                      _removeOverlay();
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_reactionOverlay!);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    Widget bubbleContent = _buildContent(context);
+
+    if (widget.isFailed) {
+      bubbleContent = Stack(
+        children: [
+          bubbleContent,
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: GestureDetector(
+              onTap: widget.onRetry,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.warning_rounded,
+                    color: Colors.white, size: 18),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bubbleStyle = Theme.of(context).extension<BubbleStyle>()!;
+    final ownRadius = bubbleStyle.ownRadius;
+    final otherRadius = bubbleStyle.otherRadius;
+
     final bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.7,
       ),
       margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 12),
       decoration: BoxDecoration(
-        color: isOwn
-            ? (Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF1B5E20)
-                : const Color(0xFFDCF8C6))
-            : (Theme.of(context).brightness == Brightness.dark
-                ? Colors.grey[800]
-                : Colors.white),
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(16),
-          topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(isOwn ? 16 : 4),
-          bottomRight: Radius.circular(isOwn ? 4 : 16),
-        ),
+        borderRadius: widget.isOwn ? ownRadius : otherRadius,
+        gradient: widget.isOwn
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [AppColors.ownBubbleDarkStart, AppColors.ownBubbleDarkEnd]
+                    : [
+                        AppColors.ownBubbleLightStart,
+                        AppColors.ownBubbleLightEnd
+                      ],
+              )
+            : null,
+        color: widget.isOwn
+            ? null
+            : (isDark ? AppColors.otherBubbleDark : AppColors.otherBubbleLight),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
+          widget.isOwn ? bubbleStyle.ownShadow : bubbleStyle.otherShadow,
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(16),
-          topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(isOwn ? 16 : 4),
-          bottomRight: Radius.circular(isOwn ? 4 : 16),
+        borderRadius: widget.isOwn ? ownRadius : otherRadius,
+        child: Stack(
+          children: [
+            bubbleContent,
+            if (widget.isOwn)
+              Positioned(
+                right: -1,
+                bottom: 0,
+                child: CustomPaint(
+                  size: const Size(10, 10),
+                  painter: _BubbleTailPainter(
+                    color: isDark
+                        ? AppColors.ownBubbleDarkEnd
+                        : AppColors.ownBubbleLightEnd,
+                    isOwn: true,
+                  ),
+                ),
+              )
+            else
+              Positioned(
+                left: -1,
+                bottom: 0,
+                child: CustomPaint(
+                  size: const Size(10, 10),
+                  painter: _BubbleTailPainter(
+                    color: isDark
+                        ? AppColors.otherBubbleDark
+                        : AppColors.otherBubbleLight,
+                    isOwn: false,
+                  ),
+                ),
+              ),
+          ],
         ),
-        child: _buildContent(context),
       ),
     );
 
     return Align(
-      alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: widget.isOwn ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (isSelecting && !isOwn)
+          if (widget.isSelecting && !widget.isOwn)
             Padding(
               padding: const EdgeInsets.only(left: 4),
               child: _SelectionCheck(
-                isSelected: isSelected,
-                onTap: onTap,
+                isSelected: widget.isSelected,
+                onTap: widget.onTap,
               ),
             ),
           Flexible(
             child: GestureDetector(
-              onHorizontalDragEnd: isSelecting
+              onHorizontalDragEnd: widget.isSelecting
                   ? null
                   : (details) {
                       if (details.primaryVelocity != null &&
                           details.primaryVelocity! > 50) {
-                        onSwipeReply?.call();
+                        widget.onSwipeReply?.call();
                       }
                     },
-              onTap: isSelecting ? onTap : null,
-              onLongPressStart: isSelecting
+              onTap: widget.isFailed
+                  ? widget.onRetry
+                  : (widget.isSelecting ? widget.onTap : null),
+              onLongPressStart: widget.isSelecting
                   ? null
-                  : (details) => onLongPress?.call(details.globalPosition),
+                  : (details) {
+                      _showReactionBar(context, details.globalPosition);
+                      widget.onLongPress?.call(details.globalPosition);
+                    },
               child: bubble,
             ),
           ),
-          if (isSelecting && isOwn)
+          if (widget.isSelecting && widget.isOwn)
             Padding(
               padding: const EdgeInsets.only(right: 4),
               child: _SelectionCheck(
-                isSelected: isSelected,
-                onTap: onTap,
+                isSelected: widget.isSelected,
+                onTap: widget.onTap,
               ),
             ),
         ],
@@ -110,15 +251,36 @@ class MessageBubble extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (message.replyToText != null && message.replyToText!.isNotEmpty)
+        if (widget.message.replyToText != null &&
+            widget.message.replyToText!.isNotEmpty)
           _buildReplyQuote(context),
-        switch (message.type) {
-          'image' ||
-          'multi_image' =>
-            _ImageContent(message: message, isOwn: isOwn),
-          'audio' => _AudioContent(message: message, isOwn: isOwn),
-          'sticker' => _StickerContent(message: message, isOwn: isOwn),
-          _ => _TextContent(message: message, isOwn: isOwn),
+        switch (widget.message.type) {
+          'image' || 'multi_image' => _ImageContent(
+              message: widget.message,
+              isOwn: widget.isOwn,
+              currentUserId: widget.currentUserId,
+              isGroup: widget.isGroup),
+          'audio' => _AudioContent(
+              message: widget.message,
+              isOwn: widget.isOwn,
+              currentUserId: widget.currentUserId,
+              isGroup: widget.isGroup),
+          'sticker' => _StickerContent(
+              message: widget.message,
+              isOwn: widget.isOwn,
+              currentUserId: widget.currentUserId,
+              isGroup: widget.isGroup),
+          'file' => _FileContent(
+              message: widget.message,
+              isOwn: widget.isOwn,
+              currentUserId: widget.currentUserId,
+              isGroup: widget.isGroup),
+          _ => _TextContent(
+              message: widget.message,
+              isOwn: widget.isOwn,
+              currentUserId: widget.currentUserId,
+              searchQuery: widget.searchQuery,
+              isGroup: widget.isGroup),
         },
       ],
     );
@@ -130,7 +292,7 @@ class MessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: isOwn ? Colors.black45 : const Color(0xFF075E54),
+            color: widget.isOwn ? Colors.black45 : const Color(0xFFE65100),
             width: 3,
           ),
         ),
@@ -139,22 +301,22 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            message.replyToSenderName != null
-                ? 'Reply to ${message.replyToSenderName}'
+            widget.message.replyToSenderName != null
+                ? 'Reply to ${widget.message.replyToSenderName}'
                 : 'Reply',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: isOwn
+              color: widget.isOwn
                   ? (Theme.of(context).brightness == Brightness.dark
                       ? Colors.white54
                       : Colors.black54)
-                  : const Color(0xFF075E54),
+                  : const Color(0xFFE65100),
             ),
           ),
           const SizedBox(height: 2),
           Text(
-            message.replyToText!,
+            widget.message.replyToText!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -174,7 +336,16 @@ class MessageBubble extends StatelessWidget {
 class _TextContent extends StatelessWidget {
   final Message message;
   final bool isOwn;
-  const _TextContent({required this.message, required this.isOwn});
+  final String currentUserId;
+  final String searchQuery;
+  final bool isGroup;
+  const _TextContent({
+    required this.message,
+    required this.isOwn,
+    required this.currentUserId,
+    this.searchQuery = '',
+    this.isGroup = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -183,9 +354,54 @@ class _TextContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isGroup && !isOwn && message.senderName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                message.senderName,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFE65100),
+                ),
+              ),
+            ),
+          if (message.isForwarded)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.reply_rounded,
+                      size: 12,
+                      color: isOwn
+                          ? (Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white54
+                              : Colors.black45)
+                          : Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Forwarded',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isOwn
+                          ? (Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white54
+                              : Colors.black45)
+                          : Colors.grey,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           _buildText(context),
           const SizedBox(height: 2),
           _MetaRow(message: message, isOwn: isOwn),
+          ReactionDisplay(
+            reactions: message.reactions,
+            currentUserId: currentUserId,
+          ),
         ],
       ),
     );
@@ -193,7 +409,7 @@ class _TextContent extends StatelessWidget {
 
   Widget _buildText(BuildContext context) {
     final text = message.text;
-    final mentionColor = isOwn ? Colors.black87 : const Color(0xFF075E54);
+    final mentionColor = isOwn ? Colors.black87 : const Color(0xFFE65100);
     final defaultColor =
         isOwn && Theme.of(context).brightness == Brightness.dark
             ? Colors.white
@@ -204,40 +420,62 @@ class _TextContent extends StatelessWidget {
             : Colors.black45)
         : Colors.grey;
 
-    final regex = RegExp(r'@(\w+)');
-    final matches = regex.allMatches(text);
-    if (matches.isEmpty) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child:
-                Text(text, style: TextStyle(fontSize: 16, color: defaultColor)),
-          ),
-          if (message.isEdited)
-            Text(' edited', style: TextStyle(fontSize: 11, color: editedColor)),
-        ],
-      );
-    }
+    List<TextSpan> _buildSpans() {
+      final spans = <TextSpan>[];
+      final mentionRegex = RegExp(r'@(\w+)');
 
-    final spans = <TextSpan>[];
-    int lastEnd = 0;
-    for (final m in matches) {
-      if (m.start > lastEnd) {
-        spans.add(TextSpan(text: text.substring(lastEnd, m.start)));
+      if (searchQuery.isNotEmpty) {
+        final highlightColor =
+            isOwn ? const Color(0xFFFFF176) : const Color(0xFFFFF176);
+        int i = 0;
+        while (i < text.length) {
+          final queryIdx = text.toLowerCase().indexOf(searchQuery, i);
+          if (queryIdx == -1) {
+            spans.add(TextSpan(text: text.substring(i)));
+            break;
+          }
+          if (queryIdx > i) {
+            spans.add(TextSpan(text: text.substring(i, queryIdx)));
+          }
+          spans.add(TextSpan(
+            text: text.substring(queryIdx, queryIdx + searchQuery.length),
+            style: TextStyle(
+              fontSize: 16,
+              backgroundColor: highlightColor,
+              color: Colors.black87,
+              fontWeight: FontWeight.w600,
+            ),
+          ));
+          i = queryIdx + searchQuery.length;
+        }
+        return spans;
       }
-      spans.add(TextSpan(
-        text: m.group(0),
-        style: TextStyle(
-          fontSize: 16,
-          color: mentionColor,
-          fontWeight: FontWeight.w600,
-        ),
-      ));
-      lastEnd = m.end;
-    }
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(text: text.substring(lastEnd)));
+
+      final mentionMatches = mentionRegex.allMatches(text);
+      if (mentionMatches.isEmpty) {
+        spans.add(TextSpan(text: text));
+        return spans;
+      }
+
+      int lastEnd = 0;
+      for (final m in mentionMatches) {
+        if (m.start > lastEnd) {
+          spans.add(TextSpan(text: text.substring(lastEnd, m.start)));
+        }
+        spans.add(TextSpan(
+          text: m.group(0),
+          style: TextStyle(
+            fontSize: 16,
+            color: mentionColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ));
+        lastEnd = m.end;
+      }
+      if (lastEnd < text.length) {
+        spans.add(TextSpan(text: text.substring(lastEnd)));
+      }
+      return spans;
     }
 
     return Row(
@@ -247,7 +485,7 @@ class _TextContent extends StatelessWidget {
           child: Text.rich(
             TextSpan(
                 style: TextStyle(fontSize: 16, color: defaultColor),
-                children: spans),
+                children: _buildSpans()),
           ),
         ),
         if (message.isEdited)
@@ -260,7 +498,14 @@ class _TextContent extends StatelessWidget {
 class _ImageContent extends StatelessWidget {
   final Message message;
   final bool isOwn;
-  const _ImageContent({required this.message, required this.isOwn});
+  final String currentUserId;
+  final bool isGroup;
+  const _ImageContent({
+    required this.message,
+    required this.isOwn,
+    required this.currentUserId,
+    this.isGroup = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +516,7 @@ class _ImageContent extends StatelessWidget {
         urls: message.mediaUrls!,
         isOwn: isOwn,
         message: message,
+        currentUserId: currentUserId,
       );
     }
     return GestureDetector(
@@ -278,22 +524,31 @@ class _ImageContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isGroup && !isOwn && message.senderName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+              child: Text(
+                message.senderName,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFE65100),
+                ),
+              ),
+            ),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 300),
-            child: Image.network(
-              message.mediaUrl ?? '',
+            child: CachedNetworkImage(
+              imageUrl: message.mediaUrl ?? '',
               width: double.infinity,
               fit: BoxFit.cover,
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  height: 200,
-                  color: Colors.grey[200],
-                  child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2)),
-                );
-              },
-              errorBuilder: (_, __, ___) => Container(
+              placeholder: (_, __) => Container(
+                height: 200,
+                color: Colors.grey[200],
+                child: const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+              errorWidget: (_, __, ___) => Container(
                 height: 150,
                 color: Colors.grey[200],
                 child: const Center(
@@ -303,7 +558,16 @@ class _ImageContent extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
-            child: _MetaRow(message: message, isOwn: isOwn),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _MetaRow(message: message, isOwn: isOwn),
+                ReactionDisplay(
+                  reactions: message.reactions,
+                  currentUserId: currentUserId,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -320,10 +584,27 @@ class _ImageContent extends StatelessWidget {
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
             elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.download_rounded),
+                tooltip: 'Save to gallery',
+                onPressed: () async {
+                  final ok = await saveImageToGallery(url);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text(ok ? 'Saved to gallery' : 'Failed to save'),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
           ),
           body: Center(
             child: InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
+              child: CachedNetworkImage(imageUrl: url, fit: BoxFit.contain),
             ),
           ),
         ),
@@ -336,10 +617,12 @@ class _MultiImageGrid extends StatelessWidget {
   final List<String> urls;
   final bool isOwn;
   final Message message;
+  final String currentUserId;
   const _MultiImageGrid({
     required this.urls,
     required this.isOwn,
     required this.message,
+    required this.currentUserId,
   });
 
   @override
@@ -365,19 +648,16 @@ class _MultiImageGrid extends StatelessWidget {
                 return Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      visible[i],
+                    CachedNetworkImage(
+                      imageUrl: visible[i],
                       fit: BoxFit.cover,
-                      loadingBuilder: (_, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          color: Colors.grey[200],
-                          child: const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        );
-                      },
-                      errorBuilder: (_, __, ___) => Container(
+                      placeholder: (_, __) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
                         color: Colors.grey[200],
                         child: const Center(
                           child: Icon(Icons.broken_image, color: Colors.grey),
@@ -405,7 +685,16 @@ class _MultiImageGrid extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
-            child: _MetaRow(message: message, isOwn: isOwn),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _MetaRow(message: message, isOwn: isOwn),
+                ReactionDisplay(
+                  reactions: message.reactions,
+                  currentUserId: currentUserId,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -464,6 +753,22 @@ class _ImageGalleryState extends State<_ImageGallery> {
         foregroundColor: Colors.white,
         elevation: 0,
         title: Text('${_currentIndex + 1} / ${widget.urls.length}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_rounded),
+            tooltip: 'Save to gallery',
+            onPressed: () async {
+              final ok = await saveImageToGallery(widget.urls[_currentIndex]);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? 'Saved to gallery' : 'Failed to save'),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: PageView(
         controller: _pageController,
@@ -471,7 +776,7 @@ class _ImageGalleryState extends State<_ImageGallery> {
         children: widget.urls.map((url) {
           return Center(
             child: InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
+              child: CachedNetworkImage(imageUrl: url, fit: BoxFit.contain),
             ),
           );
         }).toList(),
@@ -483,7 +788,14 @@ class _ImageGalleryState extends State<_ImageGallery> {
 class _AudioContent extends StatefulWidget {
   final Message message;
   final bool isOwn;
-  const _AudioContent({required this.message, required this.isOwn});
+  final String currentUserId;
+  final bool isGroup;
+  const _AudioContent({
+    required this.message,
+    required this.isOwn,
+    required this.currentUserId,
+    this.isGroup = false,
+  });
 
   @override
   State<_AudioContent> createState() => _AudioContentState();
@@ -551,97 +863,125 @@ class _AudioContentState extends State<_AudioContent> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: Icon(
-              _isLoading
-                  ? Icons.hourglass_top
-                  : _isPlaying
-                      ? Icons.pause_circle_filled_rounded
-                      : Icons.play_circle_fill_rounded,
-              color: widget.isOwn
-                  ? (Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : Colors.black87)
-                  : const Color(0xFF075E54),
-              size: 32,
+          if (widget.isGroup &&
+              !widget.isOwn &&
+              widget.message.senderName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 2),
+              child: Text(
+                widget.message.senderName,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFE65100),
+                ),
+              ),
             ),
-            onPressed: _isLoading ? null : _togglePlay,
-          ),
-          Column(
+          Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 100,
-                child: SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 3,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 5),
-                    overlayShape:
-                        const RoundSliderOverlayShape(overlayRadius: 12),
-                    activeTrackColor: widget.isOwn
-                        ? (Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white
-                            : Colors.black87)
-                        : const Color(0xFF075E54),
-                    inactiveTrackColor:
-                        Theme.of(context).brightness == Brightness.dark
-                            ? Colors.grey[600]
-                            : Colors.grey[300],
-                    thumbColor: widget.isOwn
-                        ? (Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white
-                            : Colors.black87)
-                        : const Color(0xFF075E54),
-                  ),
-                  child: Slider(
-                    value: total.inSeconds > 0
-                        ? _position.inSeconds
-                            .clamp(0, total.inSeconds)
-                            .toDouble()
-                        : 0,
-                    max: total.inSeconds > 0 ? total.inSeconds.toDouble() : 1,
-                    onChanged: (v) =>
-                        _player.seek(Duration(seconds: v.toInt())),
-                  ),
+              IconButton(
+                icon: Icon(
+                  _isLoading
+                      ? Icons.hourglass_top
+                      : _isPlaying
+                          ? Icons.pause_circle_filled_rounded
+                          : Icons.play_circle_fill_rounded,
+                  color: widget.isOwn
+                      ? (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black87)
+                      : const Color(0xFFE65100),
+                  size: 32,
                 ),
+                onPressed: _isLoading ? null : _togglePlay,
               ),
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Row(
-                  children: [
-                    Text(
-                      _fmt(_position),
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.grey[400]
-                              : Colors.grey[600]),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 3,
+                        thumbShape:
+                            const RoundSliderThumbShape(enabledThumbRadius: 5),
+                        overlayShape:
+                            const RoundSliderOverlayShape(overlayRadius: 12),
+                        activeTrackColor: widget.isOwn
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black87)
+                            : const Color(0xFFE65100),
+                        inactiveTrackColor:
+                            Theme.of(context).brightness == Brightness.dark
+                                ? Colors.grey[600]
+                                : Colors.grey[300],
+                        thumbColor: widget.isOwn
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black87)
+                            : const Color(0xFFE65100),
+                      ),
+                      child: Slider(
+                        value: total.inSeconds > 0
+                            ? _position.inSeconds
+                                .clamp(0, total.inSeconds)
+                                .toDouble()
+                            : 0,
+                        max: total.inSeconds > 0
+                            ? total.inSeconds.toDouble()
+                            : 1,
+                        onChanged: (v) =>
+                            _player.seek(Duration(seconds: v.toInt())),
+                      ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _fmt(total),
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.grey[500]
-                              : Colors.grey[400]),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          _fmt(_position),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[600]),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _fmt(total),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.grey[500]
+                                  : Colors.grey[400]),
+                        ),
+                      ],
                     ),
+                  ),
+                ],
+              ),
+              Column(
+                children: [
+                  if (widget.isOwn) ...[
+                    const SizedBox(height: 4),
+                    _SeenIcon(message: widget.message),
                   ],
-                ),
+                ],
               ),
             ],
           ),
-          Column(
-            children: [
-              if (widget.isOwn) ...[
-                const SizedBox(height: 4),
-                _SeenIcon(message: widget.message),
-              ],
-            ],
+          ReactionDisplay(
+            reactions: widget.message.reactions,
+            currentUserId: widget.currentUserId,
           ),
         ],
       ),
@@ -652,7 +992,14 @@ class _AudioContentState extends State<_AudioContent> {
 class _StickerContent extends StatelessWidget {
   final Message message;
   final bool isOwn;
-  const _StickerContent({required this.message, required this.isOwn});
+  final String currentUserId;
+  final bool isGroup;
+  const _StickerContent({
+    required this.message,
+    required this.isOwn,
+    required this.currentUserId,
+    this.isGroup = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -661,24 +1008,33 @@ class _StickerContent extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (isGroup && !isOwn && message.senderName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                message.senderName,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFE65100),
+                ),
+              ),
+            ),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              message.mediaUrl ?? '',
+            child: CachedNetworkImage(
+              imageUrl: message.mediaUrl ?? '',
               width: 150,
               height: 150,
               fit: BoxFit.cover,
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  width: 150,
-                  height: 150,
-                  color: Colors.grey[100],
-                  child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2)),
-                );
-              },
-              errorBuilder: (_, __, ___) => Container(
+              placeholder: (_, __) => Container(
+                width: 150,
+                height: 150,
+                color: Colors.grey[100],
+                child: const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+              errorWidget: (_, __, ___) => Container(
                 width: 150,
                 height: 150,
                 color: Colors.grey[100],
@@ -689,7 +1045,142 @@ class _StickerContent extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           _MetaRow(message: message, isOwn: isOwn),
+          ReactionDisplay(
+            reactions: message.reactions,
+            currentUserId: currentUserId,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _FileContent extends StatelessWidget {
+  final Message message;
+  final bool isOwn;
+  final String currentUserId;
+  final bool isGroup;
+  const _FileContent({
+    required this.message,
+    required this.isOwn,
+    required this.currentUserId,
+    this.isGroup = false,
+  });
+
+  void _openFile(BuildContext context) async {
+    final url = message.mediaUrl;
+    if (url == null || url.isEmpty) return;
+    try {
+      final dir = await getTemporaryDirectory();
+      final localPath = '${dir.path}/${message.fileName ?? 'file'}';
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final file = File(localPath);
+        await file.writeAsBytes(response.bodyBytes);
+        await OpenFile.open(localPath);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to download file')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  String _formatFileSize(int? bytes) {
+    if (bytes == null) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  IconData _fileIcon(String? name) {
+    if (name == null) return Icons.insert_drive_file_rounded;
+    final ext = name.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart_rounded;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow_rounded;
+      case 'zip':
+      case 'rar':
+        return Icons.folder_zip_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _openFile(context),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isGroup && !isOwn && message.senderName.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  message.senderName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFE65100),
+                  ),
+                ),
+              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_fileIcon(message.fileName),
+                    size: 36, color: const Color(0xFFE65100)),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        message.fileName ?? 'File',
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (message.fileSize != null)
+                        Text(
+                          _formatFileSize(message.fileSize),
+                          style:
+                              TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            _MetaRow(message: message, isOwn: isOwn),
+            ReactionDisplay(
+              reactions: message.reactions,
+              currentUserId: currentUserId,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -749,9 +1240,9 @@ class _SelectionCheck extends StatelessWidget {
           height: 24,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isSelected ? const Color(0xFF075E54) : Colors.transparent,
+            color: isSelected ? const Color(0xFFE65100) : Colors.transparent,
             border: Border.all(
-              color: isSelected ? const Color(0xFF075E54) : Colors.grey,
+              color: isSelected ? const Color(0xFFE65100) : Colors.grey,
               width: 2,
             ),
           ),
@@ -762,6 +1253,34 @@ class _SelectionCheck extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  final Color color;
+  final bool isOwn;
+
+  _BubbleTailPainter({required this.color, required this.isOwn});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final path = Path();
+    if (isOwn) {
+      path.moveTo(size.width, 0);
+      path.lineTo(size.width, size.height);
+      path.lineTo(size.width - 8, size.height);
+      path.close();
+    } else {
+      path.moveTo(0, 0);
+      path.lineTo(0, size.height);
+      path.lineTo(8, size.height);
+      path.close();
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubbleTailPainter old) => old.color != color;
 }
 
 class _SeenIcon extends StatelessWidget {

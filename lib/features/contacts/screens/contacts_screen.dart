@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/database_service.dart';
+import '../../../shared/utils/avatar_helper.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 
@@ -92,22 +93,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   itemBuilder: (_, i) {
                     final user = filtered[i];
                     return ListTile(
-                      leading: CircleAvatar(
+                      leading: avatarWidget(
                         radius: 24,
-                        backgroundColor: const Color(0xFF075E54),
-                        backgroundImage: user.photoUrl.isNotEmpty
-                            ? NetworkImage(user.photoUrl)
-                            : null,
-                        child: user.photoUrl.isEmpty
-                            ? Text(
-                                user.name[0].toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : null,
+                        photoUrl: user.photoUrl,
+                        name: user.name,
                       ),
                       title: Text(
                         user.name,
