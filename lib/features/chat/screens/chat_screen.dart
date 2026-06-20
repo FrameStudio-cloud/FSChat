@@ -11,7 +11,6 @@ import 'package:file_picker/file_picker.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../../../core/services/database_service.dart';
-import '../../../core/services/tip_service.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/menu_action.dart';
@@ -61,9 +60,6 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      TipService.showNext(context);
-    });
   }
 
   @override
