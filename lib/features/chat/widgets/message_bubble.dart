@@ -1141,7 +1141,7 @@ class _FileContent extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFFE65100),
+                    color: AppColors.brand,
                   ),
                 ),
               ),

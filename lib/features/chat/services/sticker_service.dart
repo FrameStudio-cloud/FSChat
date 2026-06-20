@@ -111,43 +111,50 @@ class StickerService {
     ];
   }
 
+  static const Map<String, String> _emojiMap = {
+    'wave_01': '👋',
+    'wave_02': '✌️',
+    'wave_03': '❤️',
+    'wave_04': '😂',
+    'wave_05': '😢',
+    'wave_06': '😎',
+    'wave_07': '😤',
+    'wave_08': '👏',
+    'wave_09': '👍',
+    'wave_10': '🎉',
+    'react_01': '👍',
+    'react_02': '👎',
+    'react_03': '❤️',
+    'react_04': '🔥',
+    'react_05': '💯',
+    'react_06': '🤡',
+    'react_07': '😊',
+    'react_08': '😭',
+  };
+
+  static const List<Color> _emojiColors = [
+    Color(0xFFFF6B6B),
+    Color(0xFF4ECDC4),
+    Color(0xFFFFE66D),
+    Color(0xFF95E1D3),
+    Color(0xFFF38181),
+    Color(0xFFAA96DA),
+    Color(0xFFFCBF49),
+    Color(0xFFA8D8EA),
+    Color(0xFF6C5B7B),
+    Color(0xFFFCE38A),
+  ];
+
+  static Color _colorForSticker(String stickerId) =>
+      _emojiColors[stickerId.hashCode.abs() % _emojiColors.length];
+
+  static String _emojiForSticker(String stickerId) =>
+      _emojiMap[stickerId] ?? '🤔';
+
   static Future<Uint8List> renderBuiltInStickerToBytes(
       String packId, String stickerId) async {
-    const emojiMap = {
-      'wave_01': '👋',
-      'wave_02': '✌️',
-      'wave_03': '❤️',
-      'wave_04': '😂',
-      'wave_05': '😢',
-      'wave_06': '😎',
-      'wave_07': '😤',
-      'wave_08': '👏',
-      'wave_09': '👍',
-      'wave_10': '🎉',
-      'react_01': '👍',
-      'react_02': '👎',
-      'react_03': '❤️',
-      'react_04': '🔥',
-      'react_05': '💯',
-      'react_06': '🤡',
-      'react_07': '😊',
-      'react_08': '😭',
-    };
-    const colors = [
-      Color(0xFFFF6B6B),
-      Color(0xFF4ECDC4),
-      Color(0xFFFFE66D),
-      Color(0xFF95E1D3),
-      Color(0xFFF38181),
-      Color(0xFFAA96DA),
-      Color(0xFFFCBF49),
-      Color(0xFFA8D8EA),
-      Color(0xFFAA96DA),
-      Color(0xFFFCE38A),
-    ];
-
-    final emoji = emojiMap[stickerId] ?? '🤔';
-    final bgColor = colors[stickerId.hashCode.abs() % colors.length];
+    final emoji = _emojiForSticker(stickerId);
+    final bgColor = _colorForSticker(stickerId);
     const size = 256.0;
 
     final recorder = ui.PictureRecorder();
@@ -179,7 +186,7 @@ class StickerService {
 
   static Widget stickerPreview(String packId, String stickerId,
       {String? localPath}) {
-    if (localPath != null && File(localPath).existsSync()) {
+    if (localPath != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.file(
@@ -195,47 +202,14 @@ class StickerService {
   }
 
   static Widget _builtInPreview(String packId, String stickerId) {
-    const colors = [
-      Color(0xFFFF6B6B),
-      Color(0xFF4ECDC4),
-      Color(0xFFFFE66D),
-      Color(0xFF95E1D3),
-      Color(0xFFF38181),
-      Color(0xFFAA96DA),
-      Color(0xFFFCBF49),
-      Color(0xFFA8D8EA),
-      Color(0xFFAA96DA),
-      Color(0xFFFCE38A),
-    ];
-    const emojis = {
-      'wave_01': '👋',
-      'wave_02': '✌️',
-      'wave_03': '❤️',
-      'wave_04': '😂',
-      'wave_05': '😢',
-      'wave_06': '😎',
-      'wave_07': '😤',
-      'wave_08': '👏',
-      'wave_09': '👍',
-      'wave_10': '🎉',
-      'react_01': '👍',
-      'react_02': '👎',
-      'react_03': '❤️',
-      'react_04': '🔥',
-      'react_05': '💯',
-      'react_06': '🤡',
-      'react_07': '😊',
-      'react_08': '😭',
-    };
-    final index = stickerId.hashCode.abs() % colors.length;
-    final emoji = emojis[stickerId] ?? '🤔';
     return Container(
       decoration: BoxDecoration(
-        color: colors[index],
+        color: _colorForSticker(stickerId),
         borderRadius: BorderRadius.circular(12),
       ),
       alignment: Alignment.center,
-      child: Text(emoji, style: const TextStyle(fontSize: 48)),
+      child: Text(_emojiForSticker(stickerId),
+          style: const TextStyle(fontSize: 48)),
     );
   }
 }

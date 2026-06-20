@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/sticker_model.dart';
 import '../services/sticker_service.dart';
 
-class StickerSuggestionBar extends StatelessWidget {
+class StickerSuggestionBar extends StatefulWidget {
   final String query;
   final void Function(Sticker sticker) onStickerSelected;
 
@@ -13,10 +13,45 @@ class StickerSuggestionBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (query.length < 2) return const SizedBox.shrink();
+  State<StickerSuggestionBar> createState() => _StickerSuggestionBarState();
+}
 
-    final matches = _findMatches(query);
+class _StickerSuggestionBarState extends State<StickerSuggestionBar> {
+  String _cachedQuery = '';
+  List<Sticker> _cachedMatches = [];
+
+  @override
+  void didUpdateWidget(StickerSuggestionBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query != oldWidget.query) {
+      _cachedQuery = '';
+    }
+  }
+
+  List<Sticker> _findMatches(String query) {
+    if (query == _cachedQuery && _cachedMatches.isNotEmpty) {
+      return _cachedMatches;
+    }
+    final lower = query.toLowerCase();
+    final service = StickerService.instance;
+    final results = <Sticker>[];
+    for (final pack in service.packs) {
+      for (final sticker in pack.stickers) {
+        if (sticker.tags.any((tag) => tag.toLowerCase().contains(lower))) {
+          results.add(sticker);
+        }
+      }
+    }
+    _cachedQuery = query;
+    _cachedMatches = results.take(6).toList();
+    return _cachedMatches;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.query.length < 2) return const SizedBox.shrink();
+
+    final matches = _findMatches(widget.query);
     if (matches.isEmpty) return const SizedBox.shrink();
 
     return Container(
@@ -54,7 +89,7 @@ class StickerSuggestionBar extends StatelessWidget {
               itemBuilder: (_, i) {
                 final sticker = matches[i];
                 return GestureDetector(
-                  onTap: () => onStickerSelected(sticker),
+                  onTap: () => widget.onStickerSelected(sticker),
                   child: Container(
                     width: 56,
                     height: 56,
@@ -82,19 +117,5 @@ class StickerSuggestionBar extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  List<Sticker> _findMatches(String query) {
-    final lower = query.toLowerCase();
-    final service = StickerService.instance;
-    final results = <Sticker>[];
-    for (final pack in service.packs) {
-      for (final sticker in pack.stickers) {
-        if (sticker.tags.any((tag) => tag.toLowerCase().contains(lower))) {
-          results.add(sticker);
-        }
-      }
-    }
-    return results.take(6).toList();
   }
 }

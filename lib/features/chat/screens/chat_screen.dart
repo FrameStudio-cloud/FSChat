@@ -456,7 +456,7 @@ class _ChatScreenState extends State<ChatScreen> {
         await File(filePath).writeAsBytes(bytes);
       }
 
-      final url = await _db.uploadImage(chatId, msgId, filePath);
+      final url = await _db.uploadSticker(chatId, msgId, filePath);
       final replyTo = _replyingTo;
       setState(() => _replyingTo = null);
       await _db.sendMessage(

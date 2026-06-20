@@ -41,9 +41,8 @@ class LocalStorageService {
     return file?.path ?? target;
   }
 
-  Future<String> stickerLocalPath(String packId, String stickerId) async {
-    final path = '$stickersDir/$packId/$stickerId.png';
-    return path;
+  String stickerLocalPath(String packId, String stickerId) {
+    return '$stickersDir/$packId/$stickerId.jpg';
   }
 
   Future<List<String>> listStickerPackIds() async {

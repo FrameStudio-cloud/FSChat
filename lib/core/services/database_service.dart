@@ -210,6 +210,14 @@ class DatabaseService {
     return await ref.getDownloadURL();
   }
 
+  Future<String> uploadSticker(
+      String chatId, String messageId, String filePath) async {
+    final ref = _storage.ref().child('stickers/$chatId/$messageId.png');
+    await ref.putFile(
+        File(filePath), SettableMetadata(contentType: 'image/png'));
+    return await ref.getDownloadURL();
+  }
+
   Future<String> uploadAudio(
       String chatId, String messageId, String filePath) async {
     final ref = _storage.ref().child('media/$chatId/$messageId.m4a');
