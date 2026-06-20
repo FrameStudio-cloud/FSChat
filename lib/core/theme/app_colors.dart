@@ -10,16 +10,16 @@ class AppColors {
   static const online = Color(0xFF25D366);
   static const onlineGlow = Color(0x4025D366);
 
-  static const ownBubbleLight = Color(0xFFDCF8C6);
-  static const ownBubbleLightStart = Color(0xFFDCF8C6);
-  static const ownBubbleLightEnd = Color(0xFFC8E6A5);
+  static const ownBubbleLight = Color(0xFFFFF3E0);
+  static const ownBubbleLightStart = Color(0xFFFFF3E0);
+  static const ownBubbleLightEnd = Color(0xFFFFE0B2);
 
-  static const ownBubbleDark = Color(0xFF1B5E20);
-  static const ownBubbleDarkStart = Color(0xFF1B5E20);
-  static const ownBubbleDarkEnd = Color(0xFF2E7D32);
+  static const ownBubbleDark = Color(0xFF5D4037);
+  static const ownBubbleDarkStart = Color(0xFF5D4037);
+  static const ownBubbleDarkEnd = Color(0xFF6D4C41);
 
-  static const otherBubbleLight = Color(0xFFF8F8F5);
-  static const otherBubbleDark = Color(0xFF2D2D2D);
+  static const otherBubbleLight = Color(0xFFFFFBF0);
+  static const otherBubbleDark = Color(0xFF3A3528);
 
   static const surfaceDark = Color(0xFF121212);
   static const inputDark = Color(0xFF1E1E1E);
