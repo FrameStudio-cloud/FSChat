@@ -3,25 +3,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../../core/services/database_service.dart';
 import '../models/post_model.dart';
 import '../providers/blog_provider.dart';
 
 class BlogEditorScreen extends StatefulWidget {
-  const BlogEditorScreen({super.key});
+  final Post? post;
+
+  const BlogEditorScreen({super.key, this.post});
 
   @override
   State<BlogEditorScreen> createState() => _BlogEditorScreenState();
 }
 
 class _BlogEditorScreenState extends State<BlogEditorScreen> {
-  final _titleController = TextEditingController();
-  final _contentController = TextEditingController();
+  final _db = DatabaseService();
+  late final TextEditingController _titleController;
+  late final TextEditingController _contentController;
   final _picker = ImagePicker();
-  String _selectedType = 'article';
-  Set<String> _selectedTags = {};
+  late String _selectedType;
+  late Set<String> _selectedTags;
   String? _coverImagePath;
   bool _isPreview = false;
   bool _isSubmitting = false;
+  bool get _isEditing => widget.post != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final post = widget.post;
+    _titleController = TextEditingController(text: post?.title ?? '');
+    _contentController = TextEditingController(text: post?.content ?? '');
+    _selectedType = post?.type ?? 'article';
+    _selectedTags = post?.tags.toSet() ?? {};
+    _coverImagePath = post?.coverImage;
+  }
 
   @override
   void dispose() {
@@ -70,7 +86,8 @@ class _BlogEditorScreenState extends State<BlogEditorScreen> {
             }
           },
         ),
-        title: Text('Create Post', style: theme.textTheme.titleMedium),
+        title: Text(_isEditing ? 'Edit Post' : 'Create Post',
+            style: theme.textTheme.titleMedium),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -85,7 +102,7 @@ class _BlogEditorScreenState extends State<BlogEditorScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Publish'),
+                  : Text(_isEditing ? 'Save' : 'Publish'),
             ),
           ),
         ],
@@ -190,7 +207,37 @@ class _BlogEditorScreenState extends State<BlogEditorScreen> {
                 ],
               ),
             ),
-            if (_coverImagePath != null) ...[
+            if (_coverImagePath != null && _coverImagePath!.startsWith('http'))
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  children: [
+                    Image.network(
+                      _coverImagePath!,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.black54,
+                        child: IconButton(
+                          icon: const Icon(Icons.close,
+                              size: 16, color: Colors.white),
+                          onPressed: () =>
+                              setState(() => _coverImagePath = null),
+                          padding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_coverImagePath != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Stack(
@@ -220,8 +267,7 @@ class _BlogEditorScreenState extends State<BlogEditorScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
+            if (_coverImagePath != null) const SizedBox(height: 16),
             Row(
               children: [
                 Text('Content', style: theme.textTheme.labelLarge),
@@ -310,18 +356,39 @@ class _BlogEditorScreenState extends State<BlogEditorScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await context.read<BlogProvider>().createPost(
-            title: _titleController.text.trim(),
-            content: _contentController.text.trim(),
-            type: _selectedType,
-            tags: _selectedTags.toList(),
-            coverImagePath: _coverImagePath,
-          );
-      if (context.mounted) Navigator.pop(context);
+      final provider = context.read<BlogProvider>();
+      if (_isEditing) {
+        final updates = <String, dynamic>{
+          'title': _titleController.text.trim(),
+          'content': _contentController.text.trim(),
+          'excerpt': _contentController.text.trim().length > 150
+              ? '${_contentController.text.trim().substring(0, 150)}...'
+              : _contentController.text.trim(),
+          'type': _selectedType,
+          'tags': _selectedTags.toList(),
+        };
+        if (_coverImagePath != null && !_coverImagePath!.startsWith('http')) {
+          final url =
+              await _db.uploadPostCover(widget.post!.id, _coverImagePath!);
+          updates['coverImage'] = url;
+        } else if (_coverImagePath == null) {
+          updates['coverImage'] = null;
+        }
+        await provider.updatePost(widget.post!.id, updates);
+      } else {
+        await provider.createPost(
+          title: _titleController.text.trim(),
+          content: _contentController.text.trim(),
+          type: _selectedType,
+          tags: _selectedTags.toList(),
+          coverImagePath: _coverImagePath,
+        );
+      }
+      if (context.mounted) Navigator.pop(context, true);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to publish: $e')),
+          SnackBar(content: Text('Failed to save: $e')),
         );
       }
     } finally {

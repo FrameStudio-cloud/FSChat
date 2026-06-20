@@ -10,6 +10,7 @@ import '../../auth/models/user_model.dart';
 import '../models/post_model.dart';
 import '../widgets/comment_section.dart';
 import '../providers/blog_provider.dart';
+import 'blog_editor_screen.dart';
 
 class BlogPostScreen extends StatefulWidget {
   final String postId;
@@ -104,7 +105,20 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                             if (context.mounted) Navigator.pop(context);
                           }
                         } else if (value == 'edit') {
-                          // TODO: navigate to editor with pre-filled data
+                          if (context.mounted) {
+                            final edited = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChangeNotifierProvider.value(
+                                  value: context.read<BlogProvider>(),
+                                  child: BlogEditorScreen(post: post),
+                                ),
+                              ),
+                            );
+                            if (edited == true && context.mounted) {
+                              setState(() {});
+                            }
+                          }
                         }
                       },
                       itemBuilder: (_) => [
