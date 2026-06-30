@@ -154,9 +154,12 @@ class _HabitsListScreenState extends State<HabitsListScreen>
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () => _openEditor(),
-            child: const Icon(Icons.add),
+          floatingActionButton: Padding(
+            padding: const EdgeInsets.only(bottom: 56),
+            child: FloatingActionButton(
+              onPressed: () => _openEditor(),
+              child: const Icon(Icons.add),
+            ),
           ),
         );
       },
@@ -701,7 +704,7 @@ class _InsightsTab extends StatelessWidget {
         List.generate(7, (i) => DateTime.now().subtract(Duration(days: 6 - i)));
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       child: Column(
         children: [
           _buildWeeklyTrend(theme, colorScheme, weekDays, allDates, habits),
@@ -751,7 +754,7 @@ class _InsightsTab extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 100,
+            height: 120,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: List.generate(7, (i) {

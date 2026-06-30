@@ -460,7 +460,7 @@ class _WidgetBubbles extends StatelessWidget {
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
     return SizedBox(
-      height: 64,
+      height: 76,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

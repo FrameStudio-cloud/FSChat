@@ -91,11 +91,14 @@ class _MoodEditorScreenState extends State<MoodEditorScreen> {
             IconButton(
               icon: const Icon(Icons.chevron_left),
               onPressed: () => _changeDate(-1),
+              visualDensity: VisualDensity.compact,
             ),
-            Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
+            Text(DateFormat('MMM d, yyyy').format(_selectedDate),
+                overflow: TextOverflow.ellipsis),
             IconButton(
               icon: const Icon(Icons.chevron_right),
               onPressed: () => _changeDate(1),
+              visualDensity: VisualDensity.compact,
             ),
           ],
         ),

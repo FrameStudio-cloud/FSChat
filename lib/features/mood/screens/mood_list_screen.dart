@@ -239,9 +239,12 @@ class _MoodListScreenState extends State<MoodListScreen>
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openEditor(context),
-        child: const Icon(Icons.add),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 56),
+        child: FloatingActionButton(
+          onPressed: () => _openEditor(context),
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }
@@ -823,7 +826,7 @@ class _StreaksTab extends StatelessWidget {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       child: Column(
         children: [
           Container(
