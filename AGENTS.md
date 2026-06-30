@@ -1,7 +1,7 @@
-# FSChat — Project Context (Updated 2026-06-20)
+# FSChat — Project Context (Updated 2026-07-01)
 
 ## Architecture overview
-- **Navigation**: BottomNavigationBar with 3 tabs (Chats, Calls, Contacts), managed by HomeScreen. Spring-animated with ScaleTransition on icon swap.
+- **Navigation**: BottomNavigationBar with 4 tabs (Chats, Journal, Tools, Contacts), managed by HomeScreen. Spring-animated with ScaleTransition on icon swap. Calls tab removed.
 - **Wallpaper**: local-only, accessible from Settings → Wallpaper. Stores compressed image in `{docDir}/fschat/wallpapers/current.jpg` or solid color HEX in SharedPreferences.
 - **Online/offline**: Firestore `online` bool + `lastSeen` timestamp, updated via WidgetsBindingObserver lifecycle hooks (resumed → online, paused → offline)
 - **UserInfoScreen**: accessible by tapping avatar/name in chat header — shows photo, bio, email, online status, action buttons (Voice/Video/Message — call buttons are placeholders), shared media gallery with swipeable PageView, Clear chat, Block user
@@ -14,20 +14,21 @@
 - **Database**: Cloud Firestore
 - **Storage**: Firebase Storage (images, audio, stickers)
 - **State management**: Provider
-- **Push**: Firebase Cloud Messaging (FCM) + `flutter_local_notifications` (foreground/local fallback)
+- **Push**: Firebase Cloud Messaging (FCM) + `flutter_local_notifications` (foreground/local fallback, scheduled reminders via `timezone` + `zonedSchedule`)
 - **Local storage**: path_provider + flutter_image_compress (wallpapers, stickers, cache)
-- **Cloud Function**: Node.js 22 (2nd Gen) — `sendMessageNotification` triggers on new message, sends via FCM `admin.messaging().send()`
+- **Cloud Function**: Node.js 22 (2nd Gen) — 4 deployed functions: `sendMessageNotification`, `sendPostNotification`, `sendChallengeNotification`, `sendCommentNotification`
 
 ## Key packages
 - `firebase_messaging: ^15.2.0` — FCM push notifications
-- `flutter_local_notifications: ^18.0.1` — foreground notification display
+- `flutter_local_notifications: ^18.0.1` — foreground notification display + scheduled reminders
+- `timezone: ^0.9.4` — TZDateTime for zonedSchedule (required by flutter_local_notifications)
 - `path_provider: ^2.1.5` — app documents directory for wallpapers/cache
 - `flutter_image_compress: ^2.4.0` — compress wallpaper/sticker images before saving
 - `just_audio: ^0.9.42` — voice message playback
 - `record: ^5.1.2` — voice message recording
 - `image_picker: ^1.1.2` — gallery/camera for images and wallpapers
 - `provider: ^6.1.2` — state management
-- `shared_preferences: ^2.2.2` — theme + wallpaper + tip index persistence
+- `shared_preferences: ^2.2.2` — theme + wallpaper + tip index + notification cooldowns + reminder settings persistence
 - `cloud_firestore: ^5.6.12` — real-time data
 - `firebase_storage: ^12.3.7` — media uploads
 - `firebase_auth: ^5.5.0` — authentication
@@ -46,10 +47,23 @@
 
 ## Push Notifications (FCM)
 - **Removed**: OneSignal SDK replaced with `firebase_messaging` + FCM
-- **Cloud Function**: sends via `admin.messaging().send()` directly (no third-party API)
+- **Cloud Functions**: 4 deployed (2nd Gen, Node.js 22):
+  - `sendMessageNotification` — Firestore `chats/{chatId}/messages/{messageId}` onCreate → FCM to recipient
+  - `sendPostNotification` — Firestore `posts/{postId}` onCreate → FCM to all users
+  - `sendChallengeNotification` — Firestore `challenges/{challengeId}` onCreate → FCM to all participants
+  - `sendCommentNotification` — Firestore `comments/{commentId}` onCreate → FCM to post author
 - **Huawei**: FCM doesn't work without Google Play Services → foreground notifications fallback via `flutter_local_notifications` Firestore listener
 - **Cold-start handling**: `getInitialMessage()` stores pending notification data, `handlePendingInitialMessage()` navigates via `addPostFrameCallback`
 - **Duplicate prevention**: 3-second `_lastNotifiedPerChat` debounce map prevents FCM + Firestore listener double-firing
+- **Universal payload routing**: all notifications carry JSON payload `{"type":"...","id":"...","route":"..."}` — `_onNotificationTap` parses and navigates to the correct screen
+
+## Scheduled local notifications
+- **Habit reminders**: daily at user-chosen hour/minute via `zonedSchedule` (set/cancelled on habit create/update/delete/archive)
+- **Habit streak milestones**: one-shot notification at 3, 7, 14, 21, 30 days via SharedPreferences cooldown key `streak_milestone_{firestoreId}`
+- **Challenge deadline**: one-shot notification 1 day before challenge `endDate` (cancelled on detail screen dispose)
+- **Mood check-in**: daily at 20:00 with bell icon toggle in MoodListScreen
+- **Reading reminder**: daily at 19:00 with bell icon toggle in ReadingListScreen
+- **Low mood pattern alert**: 3 consecutive low moods → notification (7-day cooldown via SharedPreferences `last_mood_alert`)
 
 ## App branding
 - **Name**: FSChat (Frames Studio Chat)
@@ -83,7 +97,9 @@ flutter build apk --debug
 ## Project structure
 ```
 lib/
-  main.dart                     — App entry point, routing, AppTheme, SplashApp + notification postFrameCallback
+  main.dart                     — App entry point, routing, AppTheme, SplashApp + notification postFrameCallback.
+                                  Named routes: /chat, /settings, /blog/post, /blog/create, /create_group,
+                                  /habits, /mood, /challenges, /challenge/detail, /reading
   core/
     theme/
       app_colors.dart           — Named color tokens (brand orange, online green, bubble greens, etc.)
@@ -91,8 +107,11 @@ lib/
     providers/
       theme_provider.dart       — Dark/light mode + wallpaper (SharedPreferences + local file)
     services/
-      database_service.dart     — Firestore CRUD (users, chats, messages, media, block, clear, archive, uploadSticker)
-      notification_service.dart — FCM init + flutter_local_notifications, cold-start/debounce/navigator fallback
+      database_service.dart     — Firestore CRUD (users, chats, messages, media, block, clear, archive, uploadSticker) + widget bubble helpers (getCompletedHabitsToday, getActiveChallengesCount, countOnlineUsers)
+      notification_service.dart — FCM init + flutter_local_notifications, universal JSON payload routing,
+                                  cold-start/debounce/navigator fallback, 8 scheduled notification methods
+                                  (habit reminders, streak milestones, challenge deadline, mood check-in,
+                                  mood pattern alert, reading reminder)
       local_storage_service.dart — App dirs, wallpaper save/remove, stickers save/list, cache
       tip_service.dart          — Tip of the day (snackbar on chat open — removed, now only in About page)
       isar_service.dart         — Isar local database (reading list, habits)
@@ -128,10 +147,7 @@ lib/
         reaction_display.dart   — Show reactions on messages
     home/
       screens/
-        home_screen.dart        — BottomNavigationBar (spring-animated, scale transitions) with 3 tabs
-    calls/
-      screens/
-        call_log_screen.dart    — Shell: empty state, no call history yet
+        home_screen.dart        — BottomNavigationBar (spring-animated, scale transitions) with 4 tabs
     contacts/
       screens/
         contacts_screen.dart    — All users list with search + online dots, tap to start chat
@@ -141,16 +157,16 @@ lib/
         settings_screen.dart    — Cover-style profile banner, grouped sections (Appearance/Wallpaper, Notifications, Chats, Privacy, Account)
     habits/
       data/datasources/         — HabitLocalSource (Isar), HabitRemoteSource
-      data/models/              — HabitModel, HabitLogModel (with Isar generated files)
+      data/models/              — HabitModel (with reminderEnabled, reminderHour, reminderMinute), HabitLogModel (Isar generated)
       data/repositories/        — HabitRepository
-      domain/                   — HabitNotifier
-      presentation/screens/     — HabitsListScreen, HabitEditorScreen
-      presentation/widgets/     — HabitTile, StreakCalendar, HeatmapPainter, DailyNoteDialog
+      domain/                   — HabitNotifier (reminder scheduling, streak milestone detection)
+      presentation/screens/     — HabitsListScreen (3-tab dashboard: Today/Calendar/Insights), HabitEditorScreen (type toggle, category, target count)
+      presentation/widgets/     — HabitTile (quantifiable +/- buttons, boolean checkbox, archive), StreakCalendar, HeatmapPainter, DailyNoteDialog
     reading_list/
       data/datasources/         — BookLocalSource (Isar)
       data/models/              — BookModel (with Isar generated files)
       domain/                   — BookNotifier
-      presentation/screens/     — ReadingListScreen, ReadingEditorScreen
+      presentation/screens/     — ReadingListScreen (daily reading reminder bell icon), ReadingEditorScreen
       presentation/widgets/     — StarRating
     blog/
       models/                   — PostModel, CommentModel
@@ -159,10 +175,10 @@ lib/
       widgets/                  — PostCard, CommentSection, TagChipRow
     mood/
       models/                   — MoodEntry
-      screens/                  — MoodListScreen, MoodEditorScreen
+      screens/                  — MoodListScreen (3-tab dashboard: Today/Calendar/Insights, daily check-in bell icon, low mood pattern detection), MoodEditorScreen (date nav, load existing, delete), MoodInsightsScreen (trends, stats)
     challenges/
-      models/                   — ChallengeModel, ChallengeProgress
-      screens/                  — ChallengesListScreen, ChallengeDetailScreen, ChallengeEditorScreen
+      models/                   — ChallengeModel (elapsedProgress replaces old progress() stub), ChallengeProgress
+      screens/                  — ChallengesListScreen (shows elapsed time progress), ChallengeDetailScreen (deadline reminder, day toggle), ChallengeEditorScreen
     tools/
       screens/                  — ToolsScreen
   shared/
@@ -173,7 +189,7 @@ lib/
       gallery_saver.dart        — Save images to device gallery
     widgets/
       image_editor_screen.dart  — Crop, rotate, draw on images before sending
-      notification_banner.dart  — In-app notification banner widget
+      notification_banner.dart  — Generic in-app notification banner widget (no longer chat-specific)
 ```
 
 ## Key behaviors
@@ -198,6 +214,13 @@ lib/
 - **Wallpaper**: managed from Settings → Appearance → Wallpaper. Bottom sheet: No wallpaper, 7 color swatches, or Choose from gallery. Image compressed (70%, 1080x1920) and saved to `{docDir}/fschat/wallpapers/current.jpg`. Rendered via Consumer<ThemeProvider> behind message list.
 - **UserInfoScreen**: tap avatar or name in chat header → large photo (tappable for fullscreen Hero), bio, email, online/last seen, action buttons (Voice/Video placeholder snackbars, Message pops back), shared media horizontal scroll (images open in swipeable PageView), Clear chat, Block user.
 - **Contacts tab**: lists all registered users with search bar + online dots, tap to open chat directly.
+- **Habit reminders**: daily notification scheduled via `zonedSchedule` at user's chosen time; streak milestones (3/7/14/21/30 days) fire one-shot with SharedPreferences cooldown
+- **Habit dashboard**: 3-tab layout (Today/Calendar/Insights) with progress card, category chips, grouped habits, +/- quantifiable tracking, weekly trend bars, category breakdown
+- **Widget bubbles**: 6 stat chips (Mood/Habits/Journal/Challenges/Reading/Online) in horizontal row above chat list, each with tinted icon + live data + tap-to-navigate
+- **Mood dashboard**: 3-tab layout (Today/Calendar/Insights) with color-coded emoji history, year/month navigation, weekly heatmap, trends
+- **Mood check-in reminder**: daily at 20:00, toggled via bell icon in MoodListScreen; low mood pattern detection (3 consecutive lows) fires alert with 7-day cooldown
+- **Challenge deadline reminder**: one-shot notification 1 day before endDate, set on ChallengeDetailScreen init and cancelled on dispose
+- **Reading reminder**: daily at 19:00, toggled via bell icon in ReadingListScreen
 
 ## Stickers
 - **Built-in packs**: "Wave" (10 stickers) and "Reactions" (8 stickers) — each sticker has tags for keyword matching
@@ -211,11 +234,15 @@ lib/
 - `mwendeashley920@gmail.com` — Ashley Mwende (used as sender in tests)
 - `lewisirungu489@gmail.com` — Lewis irungu
 
-## Cloud Function
-- **Deployed name**: `sendMessageNotification` (2nd Gen, Node.js 22)
-- **Trigger**: Firestore `chats/{chatId}/messages/{messageId}` on create
-- **Behavior**: reads sender name, gets recipient's `pushToken`, sends via FCM `admin.messaging().send()`
-- **Secrets**: `ONESIGNAL_REST_KEY` in `functions/.env`
+## Cloud Functions
+- **Deployed** (all 2nd Gen, Node.js 22, in `functions/index.js`):
+
+| Function | Trigger | Behavior |
+|----------|---------|----------|
+| `sendMessageNotification` | `chats/{chatId}/messages/{messageId}` onCreate | Reads sender name + recipient pushToken → FCM |
+| `sendPostNotification` | `posts/{postId}` onCreate | Notifies all users of new journal post |
+| `sendChallengeNotification` | `challenges/{challengeId}` onCreate | Notifies all participants of new challenge |
+| `sendCommentNotification` | `comments/{commentId}` onCreate | Notifies post author of new comment |
 
 ## Media support
 - **Images**: pick from camera/gallery → preview → upload to Firebase Storage → inline display with tap-to-fullscreen
@@ -226,10 +253,11 @@ lib/
 
 ## Known limitations
 - **Push notifications**: Huawei Push Kit not configured → no bg/lock-screen notifications on this phone. Foreground snackbars + local notification fallback.
-- **Cloud Function sends via FCM** — uses `admin.messaging().send()` with recipient FCM token
-- **Habits/Reading list/Blog/Mood/Challenges/Tools**: frontend code exists but backend (`DatabaseService`) methods are not yet wired — pre-existing LSP errors
+- **Reading list/Blog/Challenges/Tools**: some `DatabaseService` methods are still stubs — pre-existing LSP errors in those files
+- **Widget bubbles**: data for Journal, Reading, and Contacts sections uses static text rather than live DB queries (no backend exists for journal count, reading progress, etc.)
 - Release build needs signing key configured
 - iOS build requires Mac
+- Real-time calls (WebRTC) not feasible — only one physical device, slow APK iterations. CallLogScreen removed.
 
 ## Bugs fixed
 - **Chat reactions don't show on user's own screen after tapping**: `onReact` callback in `MessageBubble` was typed as `void Function(String emoji)?` causing the `db.toggleReaction()` Future to be unawaited. Fixed: changed to `Future<void> Function(String emoji)?`, made overlay `onTap` async with `await`, added try/catch with SnackBar error feedback in `chat_screen.dart`. `message_bubble.dart:17`, `chat_screen.dart:1075`.
@@ -240,6 +268,18 @@ lib/
 - **Sticker preview path mismatch**: `stickerLocalPath()` returned `.png` extension but files saved as `.jpg`. Fixed: changed extension to `.jpg`. `local_storage_service.dart:45`.
 - **Sticker emoji/colors duplicated**: `renderBuiltInStickerToBytes()` and `_builtInPreview()` had identical emoji maps and color arrays. Fixed: extracted static `_emojiMap` and `_emojiColors` constants. `sticker_service.dart`.
 - **Sticker suggestion bar perf**: `_findMatches()` iterated all packs on every rebuild. Fixed: converted to `StatefulWidget` with query caching. `sticker_suggestion_bar.dart`.
+- **Challenge.progress() always 0.0**: stub method returned 0.0 regardless of actual progress. Fixed: replaced with `elapsedProgress()` computed from elapsed days / total days. `challenge_model.dart`.
+- **Stream subscription leaks in challenge screens**: `_loadProgress()` and `_loadUsers()` created listeners never cancelled in `dispose()`. Fixed: store `StreamSubscription` in class fields, cancel in `dispose()`. `challenge_detail_screen.dart`, `challenge_editor_screen.dart`.
+- **4 null crashes from force-unwrapped `user!`**: `mood_editor_screen.dart`, `reading_editor_screen.dart`, `challenge_detail_screen.dart`, `challenge_editor_screen.dart` all used `user!.uid` which crashes if null. Fixed: null-check `user` before access.
+- **Habit tile "Archive" button did Skip**: button text said "Archive" but triggered `onSkip`. Fixed: renamed label to "Skip today".
+- **Dead CallLogScreen**: orphaned screen at `lib/features/calls/` never imported anywhere. Fixed: deleted entire directory.
+- **Deprecated `.value` on Color**: `image_editor_screen.dart` used `Color.value` (deprecated in Flutter 3.33+). Fixed: replaced with `.toARGB32()`. Also fixed `DropdownButtonFormField.value` → `initialValue` in `blog_editor_screen.dart`.
+- **Mood `colorSchedule` typo**: `colorScedule` → `colorSchedule` in `MoodEntry` model.
+- **Mood editor null-safe**: added null check on `user` before accessing `.uid` to prevent crash.
+- **Habit model extended**: `category`, `habitType` (boolean/quantifiable), `targetCount`, `unit` fields added to `HabitModel`; `count` added to `HabitLogModel`; Isar `.g.dart` regenerated.
+- **Habit tile "Archive" actually archives**: archive confirmation dialog now fires `onArchive` instead of skip.
+- **Widget bubbles nesting fix**: `ChatListScreen` body wrapped in `Column` with `Expanded` around the existing `StreamBuilder`; `_WidgetBubbles` + `_BubbleChip` widgets added.
+- **DatabaseService helpers**: added `getCompletedHabitsToday()`, `getActiveChallengesCount()`, `countOnlineUsers()` for widget bubbles.
 
 ## Common Issues & Fixes
 
@@ -266,8 +306,11 @@ lib/
 ## To revisit later
 - Huawei background notifications won't work without Google Play Services — can't fix without HMS
 - Once configured: rebuild APK, test push notifications on lock screen & background
-- Wire Habits/Reading list screens to actual DatabaseService methods (currently have LSP errors)
-- Group chats
-- Implement actual notification settings (sound, vibrate, preview)
+- Wire remaining `DatabaseService` stubs (reading/blog/challenges tools methods still have LSP errors)
+- Implement actual notification settings (sound, vibrate, preview, per-feature toggles)
 - Implement privacy settings (read receipts, blocked users list)
 - Implement chat settings (bubble style, font size)
+- Real-time calls (WebRTC) — not feasible with single-device setup; would need STUN/TURN server + two devices
+- Mood Insights screen needs actual data aggregation + styling polish
+- Habit logging relies on remote Firestore — offline logging could be added with Isar cache
+- Widget bubbles: add live DB queries for Journal post count, reading progress, and contacts count

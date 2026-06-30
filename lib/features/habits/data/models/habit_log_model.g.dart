@@ -17,38 +17,43 @@ const HabitLogSchema = CollectionSchema(
   name: r'HabitLog',
   id: -4172717797988407309,
   properties: {
-    r'createdAt': PropertySchema(
+    r'count': PropertySchema(
       id: 0,
+      name: r'count',
+      type: IsarType.double,
+    ),
+    r'createdAt': PropertySchema(
+      id: 1,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
     r'dateString': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'dateString',
       type: IsarType.string,
     ),
     r'firestoreId': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'firestoreId',
       type: IsarType.string,
     ),
     r'habitFirestoreId': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'habitFirestoreId',
       type: IsarType.string,
     ),
     r'note': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'note',
       type: IsarType.string,
     ),
     r'progress': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'progress',
       type: IsarType.double,
     ),
     r'status': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'status',
       type: IsarType.string,
     )
@@ -127,13 +132,14 @@ void _habitLogSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeDateTime(offsets[0], object.createdAt);
-  writer.writeString(offsets[1], object.dateString);
-  writer.writeString(offsets[2], object.firestoreId);
-  writer.writeString(offsets[3], object.habitFirestoreId);
-  writer.writeString(offsets[4], object.note);
-  writer.writeDouble(offsets[5], object.progress);
-  writer.writeString(offsets[6], object.status);
+  writer.writeDouble(offsets[0], object.count);
+  writer.writeDateTime(offsets[1], object.createdAt);
+  writer.writeString(offsets[2], object.dateString);
+  writer.writeString(offsets[3], object.firestoreId);
+  writer.writeString(offsets[4], object.habitFirestoreId);
+  writer.writeString(offsets[5], object.note);
+  writer.writeDouble(offsets[6], object.progress);
+  writer.writeString(offsets[7], object.status);
 }
 
 HabitLog _habitLogDeserialize(
@@ -143,14 +149,15 @@ HabitLog _habitLogDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = HabitLog();
-  object.createdAt = reader.readDateTime(offsets[0]);
-  object.dateString = reader.readString(offsets[1]);
-  object.firestoreId = reader.readString(offsets[2]);
-  object.habitFirestoreId = reader.readString(offsets[3]);
+  object.count = reader.readDouble(offsets[0]);
+  object.createdAt = reader.readDateTime(offsets[1]);
+  object.dateString = reader.readString(offsets[2]);
+  object.firestoreId = reader.readString(offsets[3]);
+  object.habitFirestoreId = reader.readString(offsets[4]);
   object.id = id;
-  object.note = reader.readString(offsets[4]);
-  object.progress = reader.readDouble(offsets[5]);
-  object.status = reader.readString(offsets[6]);
+  object.note = reader.readString(offsets[5]);
+  object.progress = reader.readDouble(offsets[6]);
+  object.status = reader.readString(offsets[7]);
   return object;
 }
 
@@ -162,9 +169,9 @@ P _habitLogDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 1:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 2:
       return (reader.readString(offset)) as P;
     case 3:
@@ -172,8 +179,10 @@ P _habitLogDeserializeProp<P>(
     case 4:
       return (reader.readString(offset)) as P;
     case 5:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 6:
+      return (reader.readDouble(offset)) as P;
+    case 7:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -404,6 +413,68 @@ extension HabitLogQueryWhere on QueryBuilder<HabitLog, HabitLog, QWhereClause> {
 
 extension HabitLogQueryFilter
     on QueryBuilder<HabitLog, HabitLog, QFilterCondition> {
+  QueryBuilder<HabitLog, HabitLog, QAfterFilterCondition> countEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'count',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<HabitLog, HabitLog, QAfterFilterCondition> countGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'count',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<HabitLog, HabitLog, QAfterFilterCondition> countLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'count',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<HabitLog, HabitLog, QAfterFilterCondition> countBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'count',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
   QueryBuilder<HabitLog, HabitLog, QAfterFilterCondition> createdAtEqualTo(
       DateTime value) {
     return QueryBuilder.apply(this, (query) {
@@ -1238,6 +1309,18 @@ extension HabitLogQueryLinks
     on QueryBuilder<HabitLog, HabitLog, QFilterCondition> {}
 
 extension HabitLogQuerySortBy on QueryBuilder<HabitLog, HabitLog, QSortBy> {
+  QueryBuilder<HabitLog, HabitLog, QAfterSortBy> sortByCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'count', Sort.asc);
+    });
+  }
+
+  QueryBuilder<HabitLog, HabitLog, QAfterSortBy> sortByCountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'count', Sort.desc);
+    });
+  }
+
   QueryBuilder<HabitLog, HabitLog, QAfterSortBy> sortByCreatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.asc);
@@ -1325,6 +1408,18 @@ extension HabitLogQuerySortBy on QueryBuilder<HabitLog, HabitLog, QSortBy> {
 
 extension HabitLogQuerySortThenBy
     on QueryBuilder<HabitLog, HabitLog, QSortThenBy> {
+  QueryBuilder<HabitLog, HabitLog, QAfterSortBy> thenByCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'count', Sort.asc);
+    });
+  }
+
+  QueryBuilder<HabitLog, HabitLog, QAfterSortBy> thenByCountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'count', Sort.desc);
+    });
+  }
+
   QueryBuilder<HabitLog, HabitLog, QAfterSortBy> thenByCreatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.asc);
@@ -1424,6 +1519,12 @@ extension HabitLogQuerySortThenBy
 
 extension HabitLogQueryWhereDistinct
     on QueryBuilder<HabitLog, HabitLog, QDistinct> {
+  QueryBuilder<HabitLog, HabitLog, QDistinct> distinctByCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'count');
+    });
+  }
+
   QueryBuilder<HabitLog, HabitLog, QDistinct> distinctByCreatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'createdAt');
@@ -1478,6 +1579,12 @@ extension HabitLogQueryProperty
   QueryBuilder<HabitLog, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<HabitLog, double, QQueryOperations> countProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'count');
     });
   }
 

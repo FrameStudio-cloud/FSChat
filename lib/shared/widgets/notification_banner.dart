@@ -10,8 +10,6 @@ class NotificationBanner {
     BuildContext context, {
     required String title,
     required String body,
-    String? chatId,
-    String? senderId,
     VoidCallback? onTap,
   }) {
     _dismissCurrent();
@@ -20,10 +18,7 @@ class NotificationBanner {
       builder: (_) => _NotificationBannerOverlay(
         title: title,
         body: body,
-        onTap: onTap ??
-            (chatId != null && senderId != null
-                ? () => _navigateToChat(context, chatId, senderId)
-                : null),
+        onTap: onTap,
         onDismiss: _clearEntry,
       ),
     );
@@ -43,16 +38,6 @@ class NotificationBanner {
     _dismissTimer = null;
     _currentEntry?.remove();
     _currentEntry = null;
-  }
-
-  static void _navigateToChat(
-      BuildContext context, String chatId, String senderId) {
-    final nav = Navigator.of(context);
-    nav.pushNamed('/chat', arguments: {
-      'chatId': chatId,
-      // otherUser will be resolved by ChatScreen.didChangeDependencies
-      // from the chatId if not provided — but we attempt a minimal lookup
-    });
   }
 }
 
@@ -119,7 +104,6 @@ class _NotificationBannerOverlayState extends State<_NotificationBannerOverlay>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final topPadding = MediaQuery.of(context).padding.top;
 
     return SlideTransition(
       position: _slideAnimation,
@@ -146,7 +130,7 @@ class _NotificationBannerOverlayState extends State<_NotificationBannerOverlay>
                 ],
               ),
               child: Padding(
-                padding: EdgeInsets.only(
+                padding: const EdgeInsets.only(
                   left: 8,
                   top: 8,
                   bottom: 8,

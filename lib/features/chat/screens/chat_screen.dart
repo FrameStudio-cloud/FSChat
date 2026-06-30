@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
+import '../../../core/providers/settings_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:file_picker/file_picker.dart';
@@ -47,7 +48,6 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSearching = false;
   bool _isGroup = false;
   String _groupName = '';
-  String? _groupPhoto;
   String _myName = '';
   final Set<String> _selectedIds = {};
   final TextEditingController _searchController = TextEditingController();
@@ -75,8 +75,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _isGroup = args['isGroup'] as bool? ?? false;
     _groupName = args['groupName'] as String? ?? '';
-    _groupPhoto = args['groupPhoto'] as String?;
-
     if (_isGroup) return;
 
     final u = args['otherUser'] as ChatUser?;
@@ -808,8 +806,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _showWallpaperPicker(BuildContext context) {
     final theme = context.read<ThemeProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
 
     showModalBottomSheet(
       context: context,
@@ -1277,16 +1273,19 @@ class _MessageList extends StatelessWidget {
 
         final messages = snapshot.data ?? [];
 
-        final unseen =
-            messages.where((m) => !m.seenBy.contains(currentUid)).toList();
-        if (unseen.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            db.markMessagesAsSeen(
-              chatId: chatId,
-              uid: currentUid,
-              messages: unseen,
-            );
-          });
+        final showReceipts = context.read<SettingsProvider>().readReceipts;
+        if (showReceipts) {
+          final unseen =
+              messages.where((m) => !m.seenBy.contains(currentUid)).toList();
+          if (unseen.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              db.markMessagesAsSeen(
+                chatId: chatId,
+                uid: currentUid,
+                messages: unseen,
+              );
+            });
+          }
         }
 
         if (messages.isEmpty) {
@@ -2099,24 +2098,6 @@ class _ForwardChatSheetState extends State<_ForwardChatSheet> {
                             return;
                           }
                           try {
-                            String displayText;
-                            switch (widget.message.type) {
-                              case 'image':
-                                displayText = '📷 Photo';
-                                break;
-                              case 'multi_image':
-                                displayText =
-                                    '📷 ${widget.message.mediaUrls?.length ?? 0} Photos';
-                                break;
-                              case 'sticker':
-                                displayText = '📦 Sticker';
-                                break;
-                              case 'audio':
-                                displayText = '🎤 Voice message';
-                                break;
-                              default:
-                                displayText = widget.message.text;
-                            }
                             await widget.db.sendMessage(
                               chatId: targetChatId,
                               senderId: widget.currentUid,

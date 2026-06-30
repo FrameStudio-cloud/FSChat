@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import '../../../auth/providers/auth_provider.dart';
 import '../../data/models/habit_model.dart';
 import '../../domain/habit_notifier.dart';
 
 class HabitEditorScreen extends StatefulWidget {
   final Habit? existingHabit;
+  final HabitNotifier notifier;
+  final String userId;
 
-  const HabitEditorScreen({super.key, this.existingHabit});
+  const HabitEditorScreen({
+    super.key,
+    this.existingHabit,
+    required this.notifier,
+    required this.userId,
+  });
 
   @override
   State<HabitEditorScreen> createState() => _HabitEditorScreenState();
@@ -16,10 +21,17 @@ class HabitEditorScreen extends StatefulWidget {
 
 class _HabitEditorScreenState extends State<HabitEditorScreen> {
   final _nameController = TextEditingController();
+  final _unitController = TextEditingController();
+  final _targetController = TextEditingController(text: '1');
   bool _isSubmitting = false;
   String _selectedColor = '#075E54';
   String _selectedFrequency = 'daily';
   List<String> _customDays = [];
+  bool _reminderEnabled = false;
+  int _reminderHour = 9;
+  int _reminderMinute = 0;
+  String _selectedCategory = 'General';
+  String _habitType = 'boolean';
 
   bool get _isEditing => widget.existingHabit != null;
 
@@ -34,6 +46,19 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
     '#00695C',
   ];
 
+  static const _categoryOptions = [
+    'General',
+    'Health',
+    'Mind',
+    'Productivity',
+    'Fitness',
+    'Social',
+    'Finance',
+    'Learning',
+    'Creative',
+    'Self-care',
+  ];
+
   static const _dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   @override
@@ -45,12 +70,21 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
       _selectedColor = h.colorHex;
       _selectedFrequency = h.frequency;
       _customDays = List.from(h.customDays);
+      _reminderEnabled = h.reminderEnabled;
+      _reminderHour = h.reminderHour;
+      _reminderMinute = h.reminderMinute;
+      _selectedCategory = h.category;
+      _habitType = h.habitType;
+      _targetController.text = h.targetCount.toInt().toString();
+      _unitController.text = h.unit;
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _unitController.dispose();
+    _targetController.dispose();
     super.dispose();
   }
 
@@ -58,6 +92,7 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isQuantifiable = _habitType == 'quantifiable';
 
     return Scaffold(
       appBar: AppBar(
@@ -83,13 +118,14 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Name
             TextField(
               controller: _nameController,
               autofocus: !_isEditing,
               style: theme.textTheme.titleLarge,
               decoration: InputDecoration(
                 labelText: 'Habit name',
-                hintText: 'e.g. Morning journal',
+                hintText: 'e.g. Drink Water',
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
@@ -99,6 +135,160 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // Type toggle
+            Text('Type',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _habitType = 'boolean'),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: !isQuantifiable
+                              ? colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_outline,
+                                size: 18,
+                                color: !isQuantifiable
+                                    ? Colors.white
+                                    : colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 6),
+                            Text('Boolean',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: !isQuantifiable
+                                      ? Colors.white
+                                      : colorScheme.onSurfaceVariant,
+                                )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _habitType = 'quantifiable'),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isQuantifiable
+                              ? colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.exposure,
+                                size: 18,
+                                color: isQuantifiable
+                                    ? Colors.white
+                                    : colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 6),
+                            Text('Quantifiable',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: isQuantifiable
+                                      ? Colors.white
+                                      : colorScheme.onSurfaceVariant,
+                                )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Quantifiable fields
+            if (isQuantifiable) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextField(
+                      controller: _targetController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Target',
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerHighest,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: _unitController,
+                      decoration: InputDecoration(
+                        labelText: 'Unit (e.g. glasses, min)',
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerHighest,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
+            // Category
+            Text('Category',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: _selectedCategory,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: colorScheme.surfaceContainerHighest,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              items: _categoryOptions.map((c) {
+                return DropdownMenuItem(value: c, child: Text(c));
+              }).toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _selectedCategory = v);
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            // Color
             Text('Color',
                 style: theme.textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w600)),
@@ -140,7 +330,10 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
                 );
               }).toList(),
             ),
+
             const SizedBox(height: 20),
+
+            // Frequency
             Text('Frequency',
                 style: theme.textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w600)),
@@ -165,7 +358,9 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
               selected: _selectedFrequency == 'custom',
               onTap: () => setState(() {
                 _selectedFrequency = 'custom';
-                if (_customDays.isEmpty) _customDays = ['Mon', 'Wed', 'Fri'];
+                if (_customDays.isEmpty) {
+                  _customDays = ['Mon', 'Wed', 'Fri'];
+                }
               }),
             ),
             if (_selectedFrequency == 'custom') ...[
@@ -191,6 +386,35 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
                 }).toList(),
               ),
             ],
+
+            const SizedBox(height: 20),
+
+            // Reminder
+            SwitchListTile(
+              title: const Text('Daily Reminder'),
+              subtitle: Text(
+                _reminderEnabled
+                    ? '${_reminderHour.toString().padLeft(2, '0')}:${_reminderMinute.toString().padLeft(2, '0')}'
+                    : 'Tap to set a daily reminder',
+              ),
+              value: _reminderEnabled,
+              onChanged: (val) => setState(() => _reminderEnabled = val),
+            ),
+            if (_reminderEnabled) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _pickReminderTime,
+                  icon: const Icon(Icons.access_time_rounded),
+                  label: Text(
+                    '${_reminderHour.toString().padLeft(2, '0')}:${_reminderMinute.toString().padLeft(2, '0')}',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+              ),
+            ],
+
             if (_isEditing) ...[
               const SizedBox(height: 24),
               Center(
@@ -209,30 +433,56 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
     );
   }
 
+  Future<void> _pickReminderTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _reminderHour, minute: _reminderMinute),
+    );
+    if (time != null) {
+      setState(() {
+        _reminderHour = time.hour;
+        _reminderMinute = time.minute;
+      });
+    }
+  }
+
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
+    final target = double.tryParse(_targetController.text.trim()) ?? 1;
+
     setState(() => _isSubmitting = true);
     try {
-      final uid = context.read<AuthProvider>().user!.uid;
-      final notifier = context.read<HabitNotifier>();
-
       if (_isEditing) {
-        await notifier.updateHabit(
+        await widget.notifier.updateHabit(
           widget.existingHabit!.firestoreId,
           name: name,
           colorHex: _selectedColor,
           frequency: _selectedFrequency,
           customDays: _selectedFrequency == 'custom' ? _customDays : null,
+          reminderEnabled: _reminderEnabled,
+          reminderHour: _reminderHour,
+          reminderMinute: _reminderMinute,
+          category: _selectedCategory,
+          habitType: _habitType,
+          targetCount: target,
+          unit: _unitController.text.trim(),
         );
       } else {
-        await notifier.createHabit(
-          userId: uid,
+        await widget.notifier.createHabit(
+          userId: widget.userId,
           name: name,
           colorHex: _selectedColor,
           frequency: _selectedFrequency,
           customDays: _selectedFrequency == 'custom' ? _customDays : [],
+          reminderEnabled: _reminderEnabled,
+          reminderHour: _reminderHour,
+          reminderMinute: _reminderMinute,
+          category: _selectedCategory,
+          habitType: _habitType,
+          targetCount: target,
+          unit: _unitController.text.trim(),
         );
       }
       if (context.mounted) Navigator.pop(context);
@@ -259,8 +509,8 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final notifier = context.read<HabitNotifier>();
-              await notifier.archiveHabit(widget.existingHabit!.firestoreId);
+              await widget.notifier
+                  .archiveHabit(widget.existingHabit!.firestoreId);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Archive'),

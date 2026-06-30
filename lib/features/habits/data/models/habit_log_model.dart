@@ -18,5 +18,6 @@ class HabitLog {
   late String status;
   String note = '';
   double progress = 0.0;
+  double count = 0.0;
   late DateTime createdAt;
 }

@@ -61,8 +61,6 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF121212) : Colors.grey[50]!;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Contact Info'),

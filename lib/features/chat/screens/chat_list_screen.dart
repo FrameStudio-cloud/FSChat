@@ -4,10 +4,8 @@ import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/models/menu_action.dart';
 import '../../../shared/utils/avatar_helper.dart';
 import '../models/chat_model.dart';
-import '../models/message_model.dart';
 import '../widgets/chat_tile.dart';
 
 class ChatListScreen extends StatelessWidget {
@@ -100,163 +98,172 @@ class ChatListScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder(
-        stream: db.userChats(currentUid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Column(
+        children: [
+          _WidgetBubbles(uid: currentUid),
+          Expanded(
+            child: StreamBuilder(
+              stream: db.userChats(currentUid),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          final chats = snapshot.data ?? [];
+                final chats = snapshot.data ?? [];
 
-          if (chats.isEmpty) {
-            return _buildEmptyState(context);
-          }
+                if (chats.isEmpty) {
+                  return _buildEmptyState(context);
+                }
 
-          return ListView.separated(
-            itemCount: chats.length,
-            separatorBuilder: (_, __) => const Divider(
-              height: 1,
-              indent: 80,
-              endIndent: 16,
-            ),
-            itemBuilder: (context, index) {
-              final chat = chats[index];
+                return ListView.separated(
+                  itemCount: chats.length,
+                  separatorBuilder: (_, __) => const Divider(
+                    height: 1,
+                    indent: 80,
+                    endIndent: 16,
+                  ),
+                  itemBuilder: (context, index) {
+                    final chat = chats[index];
 
-              if (chat.isGroup) {
-                return RepaintBoundary(
-                  child: Dismissible(
-                    key: Key(chat.id),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 24),
-                      color: Colors.red,
-                      child: const Icon(Icons.delete_rounded,
-                          color: Colors.white, size: 28),
-                    ),
-                    confirmDismiss: (_) async {
-                      return await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Delete chat'),
-                          content:
-                              Text('Delete the group "${chat.groupName}"?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete',
-                                  style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    onDismissed: (_) => db.deleteChat(chat.id),
-                    child: StreamBuilder<int>(
-                      stream: db.unreadCountStream(chat.id, currentUid),
-                      builder: (_, unreadSnap) {
-                        final unreadCount = unreadSnap.data ?? 0;
-                        return ChatTile(
-                          chat: chat,
-                          otherUser: null,
-                          unreadCount: unreadCount,
-                          onTap: () {
-                            Navigator.pushNamed(
-                              context,
-                              '/chat',
-                              arguments: {
-                                'chatId': chat.id,
-                                'isGroup': true,
-                                'groupName': chat.groupName,
-                                'groupPhoto': chat.groupPhoto,
-                              },
+                    if (chat.isGroup) {
+                      return RepaintBoundary(
+                        child: Dismissible(
+                          key: Key(chat.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 24),
+                            color: Colors.red,
+                            child: const Icon(Icons.delete_rounded,
+                                color: Colors.white, size: 28),
+                          ),
+                          confirmDismiss: (_) async {
+                            return await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Delete chat'),
+                                content: Text(
+                                    'Delete the group "${chat.groupName}"?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Delete',
+                                        style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
                             );
                           },
-                          onLongPress: () => _showGroupMenu(context, chat, db),
-                        );
-                      },
-                    ),
-                  ),
-                );
-              }
-
-              final otherUid =
-                  chat.participants.firstWhere((p) => p != currentUid);
-
-              return RepaintBoundary(
-                child: StreamBuilder(
-                  stream: db.userStream(otherUid),
-                  builder: (_, userSnap) {
-                    final otherUser = userSnap.data;
-                    if (otherUser == null) return const SizedBox();
-
-                    return Dismissible(
-                      key: Key(chat.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 24),
-                        color: Colors.red,
-                        child: const Icon(Icons.delete_rounded,
-                            color: Colors.white, size: 28),
-                      ),
-                      confirmDismiss: (_) async {
-                        return await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Delete chat'),
-                            content: Text(
-                                'Delete conversation with ${otherUser.name}?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Delete',
-                                    style: TextStyle(color: Colors.red)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      onDismissed: (_) => db.deleteChat(chat.id),
-                      child: StreamBuilder<int>(
-                        stream: db.unreadCountStream(chat.id, currentUid),
-                        builder: (_, unreadSnap) {
-                          final unreadCount = unreadSnap.data ?? 0;
-                          return ChatTile(
-                            chat: chat,
-                            otherUser: otherUser,
-                            unreadCount: unreadCount,
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/chat',
-                                arguments: {
-                                  'chatId': chat.id,
-                                  'otherUser': otherUser,
+                          onDismissed: (_) => db.deleteChat(chat.id),
+                          child: StreamBuilder<int>(
+                            stream: db.unreadCountStream(chat.id, currentUid),
+                            builder: (_, unreadSnap) {
+                              final unreadCount = unreadSnap.data ?? 0;
+                              return ChatTile(
+                                chat: chat,
+                                otherUser: null,
+                                unreadCount: unreadCount,
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/chat',
+                                    arguments: {
+                                      'chatId': chat.id,
+                                      'isGroup': true,
+                                      'groupName': chat.groupName,
+                                      'groupPhoto': chat.groupPhoto,
+                                    },
+                                  );
                                 },
+                                onLongPress: () =>
+                                    _showGroupMenu(context, chat, db),
                               );
                             },
-                            onLongPress: () =>
-                                _showChatMenu(context, chat, otherUser, db),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final otherUid =
+                        chat.participants.firstWhere((p) => p != currentUid);
+
+                    return RepaintBoundary(
+                      child: StreamBuilder(
+                        stream: db.userStream(otherUid),
+                        builder: (_, userSnap) {
+                          final otherUser = userSnap.data;
+                          if (otherUser == null) return const SizedBox();
+
+                          return Dismissible(
+                            key: Key(chat.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 24),
+                              color: Colors.red,
+                              child: const Icon(Icons.delete_rounded,
+                                  color: Colors.white, size: 28),
+                            ),
+                            confirmDismiss: (_) async {
+                              return await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Delete chat'),
+                                  content: Text(
+                                      'Delete conversation with ${otherUser.name}?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Delete',
+                                          style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            onDismissed: (_) => db.deleteChat(chat.id),
+                            child: StreamBuilder<int>(
+                              stream: db.unreadCountStream(chat.id, currentUid),
+                              builder: (_, unreadSnap) {
+                                final unreadCount = unreadSnap.data ?? 0;
+                                return ChatTile(
+                                  chat: chat,
+                                  otherUser: otherUser,
+                                  unreadCount: unreadCount,
+                                  onTap: () {
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/chat',
+                                      arguments: {
+                                        'chatId': chat.id,
+                                        'otherUser': otherUser,
+                                      },
+                                    );
+                                  },
+                                  onLongPress: () => _showChatMenu(
+                                      context, chat, otherUser, db),
+                                );
+                              },
+                            ),
                           );
                         },
                       ),
                     );
                   },
-                ),
-              );
-            },
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showNewChatDialog(context, db, currentUid),
@@ -433,6 +440,201 @@ class ChatListScreen extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════
+// Widget Bubbles Row
+// ═══════════════════════════════════════════
+
+class _WidgetBubbles extends StatelessWidget {
+  final String uid;
+  const _WidgetBubbles({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    final db = DatabaseService();
+    final today = DateTime.now();
+    final todayKey =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    return SizedBox(
+      height: 64,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        children: [
+          _BubbleChip(
+            icon: Icons.emoji_emotions_outlined,
+            iconColor: const Color(0xFFFF9800),
+            value: FutureBuilder<String>(
+              future: db
+                  .getMoodForDate(uid, today)
+                  .then((m) => m?.label ?? 'Check in'),
+              builder: (_, snap) => Text(
+                snap.data ?? '—',
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3),
+              ),
+            ),
+            label: "Today's mood",
+            onTap: () => Navigator.pushNamed(context, '/mood'),
+          ),
+          const SizedBox(width: 8),
+          _BubbleChip(
+            icon: Icons.task_alt,
+            iconColor: const Color(0xFF25D366),
+            value: FutureBuilder<String>(
+              future: db
+                  .getCompletedHabitsToday(today)
+                  .then((n) => n.toString())
+                  .catchError((_) => '—'),
+              builder: (_, snap) => Text(
+                snap.data ?? '—',
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3),
+              ),
+            ),
+            label: 'Habits done',
+            onTap: () => Navigator.pushNamed(context, '/habits'),
+          ),
+          const SizedBox(width: 8),
+          _BubbleChip(
+            icon: Icons.edit_note,
+            iconColor: const Color(0xFFE65100),
+            value: const Text('New',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3)),
+            label: 'Journal post',
+            onTap: () => Navigator.pushNamed(context, '/blog/create'),
+          ),
+          const SizedBox(width: 8),
+          _BubbleChip(
+            icon: Icons.emoji_events_outlined,
+            iconColor: const Color(0xFF9C27B0),
+            value: FutureBuilder<int>(
+              future: db.getActiveChallengesCount(uid),
+              builder: (_, snap) => Text(
+                '${snap.data ?? 0}',
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3),
+              ),
+            ),
+            label: 'Challenges',
+            onTap: () => Navigator.pushNamed(context, '/challenges'),
+          ),
+          const SizedBox(width: 8),
+          _BubbleChip(
+            icon: Icons.menu_book_outlined,
+            iconColor: const Color(0xFF2196F3),
+            value: const Text('Open',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3)),
+            label: 'Reading list',
+            onTap: () => Navigator.pushNamed(context, '/reading'),
+          ),
+          const SizedBox(width: 8),
+          _BubbleChip(
+            icon: Icons.people_outline,
+            iconColor: const Color(0xFF00BCD4),
+            value: FutureBuilder<int>(
+              future: db.countOnlineUsers(uid),
+              builder: (_, snap) => Text(
+                '${snap.data ?? 0}',
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3),
+              ),
+            ),
+            label: 'Online now',
+            onTap: () => Navigator.pushNamed(context, '/contacts'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BubbleChip extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Widget value;
+  final String label;
+  final VoidCallback onTap;
+
+  const _BubbleChip({
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withAlpha(100)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(25),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  value,
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -19,12 +19,22 @@ class HabitRepository {
   Future<List<Habit>> getAllHabits(String userId) =>
       _local.getAllHabits(userId);
 
-  Future<void> createHabit({
+  Future<Habit?> getByFirestoreId(String firestoreId) =>
+      _local.getByFirestoreId(firestoreId);
+
+  Future<String> createHabit({
     required String userId,
     required String name,
     required String colorHex,
     required String frequency,
     List<String> customDays = const [],
+    bool reminderEnabled = false,
+    int reminderHour = 9,
+    int reminderMinute = 0,
+    String category = 'General',
+    String habitType = 'boolean',
+    double targetCount = 1,
+    String unit = '',
   }) async {
     final firestoreId = _uuid.v4();
     final habit = Habit()
@@ -34,9 +44,17 @@ class HabitRepository {
       ..colorHex = colorHex
       ..frequency = frequency
       ..customDays = customDays
-      ..createdAt = DateTime.now();
+      ..createdAt = DateTime.now()
+      ..reminderEnabled = reminderEnabled
+      ..reminderHour = reminderHour
+      ..reminderMinute = reminderMinute
+      ..category = category
+      ..habitType = habitType
+      ..targetCount = targetCount
+      ..unit = unit;
     await _local.putHabit(habit);
     await _remote.syncHabit(habit);
+    return firestoreId;
   }
 
   Future<void> updateHabit(
@@ -46,6 +64,13 @@ class HabitRepository {
     String? frequency,
     List<String>? customDays,
     bool? archived,
+    bool? reminderEnabled,
+    int? reminderHour,
+    int? reminderMinute,
+    String? category,
+    String? habitType,
+    double? targetCount,
+    String? unit,
   }) async {
     final existing = await _local.getByFirestoreId(firestoreId);
     if (existing == null) return;
@@ -55,6 +80,13 @@ class HabitRepository {
       frequency: frequency,
       customDays: customDays,
       archived: archived,
+      reminderEnabled: reminderEnabled,
+      reminderHour: reminderHour,
+      reminderMinute: reminderMinute,
+      category: category,
+      habitType: habitType,
+      targetCount: targetCount,
+      unit: unit,
     );
     await _local.putHabit(updated);
     await _remote.syncHabit(updated);
@@ -77,24 +109,44 @@ class HabitRepository {
     return _local.getLogsForDate(dateString);
   }
 
-  Future<void> toggleLog(String habitFirestoreId, String dateString) async {
+  Future<void> toggleLog(String habitFirestoreId, String dateString,
+      {double count = 0}) async {
     final existing = await _local.getLog(habitFirestoreId, dateString);
     if (existing != null) {
       await _local.deleteLog(existing.id);
-      await _remote.deleteLog(existing.firestoreId);
-    } else {
+      if (existing.firestoreId.isNotEmpty) {
+        await _remote.deleteLog(existing.firestoreId);
+      }
+    }
+    if (existing == null || count > 0) {
       final firestoreId = _uuid.v4();
       final log = HabitLog()
         ..firestoreId = firestoreId
         ..habitFirestoreId = habitFirestoreId
         ..dateString = dateString
         ..status = 'completed'
+        ..count = count
         ..createdAt = DateTime.now();
       await _local.putLog(log);
       await _remote.syncLog(log);
     }
     await _recalcStreak(habitFirestoreId);
   }
+
+  Future<void> updateLogCount(
+      String habitFirestoreId, String dateString, double count) async {
+    final existing = await _local.getLog(habitFirestoreId, dateString);
+    if (existing != null) {
+      existing.count = count;
+      existing.status = count > 0 ? 'completed' : 'skipped';
+      await _local.putLog(existing);
+      await _remote.syncLog(existing);
+    }
+    await _recalcStreak(habitFirestoreId);
+  }
+
+  Future<HabitLog?> getLog(String habitFirestoreId, String dateString) =>
+      _local.getLog(habitFirestoreId, dateString);
 
   Future<void> skipHabit(String habitFirestoreId, String dateString) async {
     final existing = await _local.getLog(habitFirestoreId, dateString);

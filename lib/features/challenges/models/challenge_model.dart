@@ -57,7 +57,18 @@ class Challenge {
         status: map['status'] as String? ?? 'active',
       );
 
-  double progress(String userId) => 0.0;
-
   int totalDays() => endDate.difference(startDate).inDays + 1;
+
+  int daysLeft() => endDate.difference(DateTime.now()).inDays.clamp(0, 999999);
+
+  bool get isArchived => status == 'archived';
+
+  bool get isCancelled => status == 'cancelled';
+
+  double elapsedProgress() {
+    final total = totalDays();
+    if (total <= 0) return 0.0;
+    final elapsed = DateTime.now().difference(startDate).inDays;
+    return (elapsed / total).clamp(0.0, 1.0);
+  }
 }

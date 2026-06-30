@@ -233,7 +233,9 @@ class _ReadingEditorScreenState extends State<ReadingEditorScreen> {
   Future<void> _save() async {
     setState(() => _isSubmitting = true);
     try {
-      final uid = context.read<AuthProvider>().user!.uid;
+      final user = context.read<AuthProvider>().user;
+      if (user == null) return;
+      final uid = user.uid;
       final totalPages = int.tryParse(_totalPagesController.text) ?? 0;
       final currentPage = int.tryParse(_currentPageController.text) ?? 0;
 

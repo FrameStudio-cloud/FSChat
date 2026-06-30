@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widget Bubbles v2 — FSChat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: #fff; }
+    .subtitle { color: #888; font-size: 13px; margin-bottom: 32px; }
+    .phone {
+      width: 390px;
+      background: #1a1a1a;
+      border-radius: 36px;
+      padding: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .screen {
+      background: #121212;
+      border-radius: 24px;
+      overflow: hidden;
+      min-height: 740px;
+    }
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 20px 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+    }
+    .appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 16px 6px;
+    }
+    .appbar-left { display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #bbb; }
+    .appbar h2 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    .appbar-right { display: flex; gap: 8px; color: #888; font-size: 18px; }
+
+    /* ═══════════════ Widget Row v2 ═══════════════ */
+    .widgets-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 6px 16px 10px;
+      scrollbar-width: none;
+    }
+    .widgets-row::-webkit-scrollbar { display: none; }
+
+    .widget {
+      flex-shrink: 0;
+      min-width: 72px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.06);
+      transition: all 0.15s;
+    }
+    .widget:hover { border-color: rgba(255,255,255,0.12); }
+
+    .widget-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .widget-icon svg { width: 18px; height: 18px; }
+
+    .widget-content { display: flex; flex-direction: column; }
+    .widget-value { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; line-height: 1.2; }
+    .widget-label { font-size: 11px; color: #888; font-weight: 500; line-height: 1.2; }
+
+    /* Widget color themes */
+    .widget.mood .widget-icon { background: rgba(255, 152, 0, 0.15); }
+    .widget.mood .widget-icon svg { fill: #FF9800; }
+    .widget.habits .widget-icon { background: rgba(37, 211, 102, 0.15); }
+    .widget.habits .widget-icon svg { fill: #25D366; }
+    .widget.journal .widget-icon { background: rgba(230, 81, 0, 0.15); }
+    .widget.journal .widget-icon svg { fill: #E65100; }
+    .widget.challenges .widget-icon { background: rgba(156, 39, 176, 0.15); }
+    .widget.challenges .widget-icon svg { fill: #9C27B0; }
+    .widget.reading .widget-icon { background: rgba(33, 150, 243, 0.15); }
+    .widget.reading .widget-icon svg { fill: #2196F3; }
+    .widget.online .widget-icon { background: rgba(0, 188, 212, 0.15); }
+    .widget.online .widget-icon svg { fill: #00BCD4; }
+
+    /* Online mini avatars */
+    .widget.online .mini-stack {
+      display: flex;
+    }
+    .widget.online .mini-stack .m {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid #121212;
+      margin-left: -6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 600;
+      background: #2a2a2a;
+      color: #aaa;
+    }
+    .widget.online .mini-stack .m:first-child { margin-left: 0; }
+    .widget.online .mini-stack .m.green { border-color: #25D366; }
+    .widget.online .mini-stack .m.more {
+      background: rgba(0,188,212,0.15);
+      border-color: #00BCD4;
+      color: #00BCD4;
+      font-size: 10px;
+    }
+
+    /* ── Chat List ── */
+    .chat-list { padding: 0 0 60px; }
+    .chat-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 16px;
+      cursor: pointer;
+    }
+    .chat-item .chat-avatar {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: #2a2a2a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: #bbb;
+      font-weight: 600;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .chat-item .online-dot {
+      width: 12px; height: 12px;
+      background: #25D366;
+      border: 2px solid #121212;
+      border-radius: 50%;
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+    }
+    .chat-item .chat-info { flex: 1; min-width: 0; }
+    .chat-item .chat-name { font-size: 15px; font-weight: 600; color: #fff; }
+    .chat-item .chat-msg { font-size: 13px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-item .chat-time { font-size: 11px; color: #555; white-space: nowrap; }
+    .chat-item .chat-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .chat-item .unread {
+      background: #E65100;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .fab {
+      position: absolute;
+      bottom: 80px;
+      right: 20px;
+      width: 56px; height: 56px;
+      background: #E65100;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 22px;
+      box-shadow: 0 4px 16px rgba(230,81,0,0.4);
+      cursor: pointer;
+    }
+
+    .details {
+      display: flex;
+      gap: 24px;
+      margin-top: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .detail-card {
+      background: #1a1a1a;
+      border-radius: 16px;
+      padding: 20px;
+      width: 220px;
+      border: 1px solid #242424;
+    }
+    .detail-card h3 { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 10px; }
+    .detail-card ul { list-style: none; font-size: 13px; color: #aaa; line-height: 1.8; }
+    .detail-card ul li::before { content: "— "; color: #555; }
+
+    .note {
+      text-align: center;
+      padding: 8px 0 4px;
+      font-size: 11px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Widget Bubbles v2</h1>
+  <p class="subtitle">Horizontal stat chips — no emojis, compact, premium</p>
+
+  <div class="phone">
+    <div class="screen" style="position:relative">
+      <div class="status-bar"><span>9:41</span><span>📶 🔋</span></div>
+      <div class="appbar">
+        <div class="appbar-left">
+          <div class="avatar">AC</div>
+          <h2>FSChat</h2>
+        </div>
+        <div class="appbar-right">
+          <span>○</span>
+          <span>⋯</span>
+        </div>
+      </div>
+
+      <!-- ═══ Widget Row v2 ═══ -->
+      <div class="widgets-row">
+        <!-- Mood -->
+        <div class="widget mood">
+          <div class="widget-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          </div>
+          <div class="widget-content">
+            <div class="widget-value">Good</div>
+            <div class="widget-label">Today's mood</div>
+          </div>
+        </div>
+
+        <!-- Habits -->
+        <div class="widget habits">
+          <div class="widget-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+          </div>
+          <div class="widget-content">
+            <div class="widget-value">3/5</div>
+            <div class="widget-label">Habits done</div>
+          </div>
+        </div>
+
+        <!-- Journal -->
+        <div class="widget journal">
+          <div class="widget-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          </div>
+          <div class="widget-content">
+            <div class="widget-value">Write</div>
+            <div class="widget-label">New journal</div>
+          </div>
+        </div>
+
+        <!-- Challenges -->
+        <div class="widget challenges">
+          <div class="widget-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2z"/></svg>
+          </div>
+          <div class="widget-content">
+            <div class="widget-value">2</div>
+            <div class="widget-label">Challenges</div>
+          </div>
+        </div>
+
+        <!-- Reading -->
+        <div class="widget reading">
+          <div class="widget-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>
+          </div>
+          <div class="widget-content">
+            <div class="widget-value">12m</div>
+            <div class="widget-label">Reading</div>
+          </div>
+        </div>
+
+        <!-- Online -->
+        <div class="widget online">
+          <div class="widget-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          </div>
+          <div class="widget-content">
+            <div class="widget-value">
+              <div class="mini-stack">
+                <div class="m green">A</div>
+                <div class="m green">L</div>
+                <div class="m">M</div>
+                <div class="m more">+2</div>
+              </div>
+            </div>
+            <div class="widget-label">Online now</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat List -->
+      <div class="chat-list">
+        <div class="chat-item">
+          <div class="chat-avatar">AM<div class="online-dot"></div></div>
+          <div class="chat-info">
+            <div class="chat-name">Ashley Mwende</div>
+            <div class="chat-msg">See you tomorrow!</div>
+          </div>
+          <div class="chat-right">
+            <div class="chat-time">10:42</div>
+            <div class="unread">3</div>
+          </div>
+        </div>
+        <div class="chat-item">
+          <div class="chat-avatar">LI</div>
+          <div class="chat-info">
+            <div class="chat-name">Lewis irungu</div>
+            <div class="chat-msg">📸 Check out this photo</div>
+          </div>
+          <div class="chat-right">
+            <div class="chat-time">9:15</div>
+          </div>
+        </div>
+        <div class="chat-item">
+          <div class="chat-avatar" style="background:#1a2a1a">DT</div>
+          <div class="chat-info">
+            <div class="chat-name">Design Team</div>
+            <div class="chat-msg">John: New mockups ready</div>
+          </div>
+          <div class="chat-right">
+            <div class="chat-time">Yesterday</div>
+          </div>
+        </div>
+        <div class="chat-item">
+          <div class="chat-avatar">SK</div>
+          <div class="chat-info">
+            <div class="chat-name">Sarah Kim</div>
+            <div class="chat-msg">Thanks for the help!</div>
+          </div>
+          <div class="chat-right">
+            <div class="chat-time">Yesterday</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fab">✎</div>
+    </div>
+    <div class="note">Compact horizontal chips — no emojis, SVG icons, clean typography</div>
+  </div>
+
+  <div class="details">
+    <div class="detail-card">
+      <h3>Layout</h3>
+      <ul>
+        <li>72px min-width per chip</li>
+        <li>36×36 icon box with tinted background</li>
+        <li>Value + label stacked</li>
+        <li>14px border-radius</li>
+        <li>1px subtle border</li>
+      </ul>
+    </div>
+    <div class="detail-card">
+      <h3>Interactions</h3>
+      <ul>
+        <li>Tap → navigates to feature</li>
+        <li>Live data: mood, habits count</li>
+        <li>Online shows stacked avatars</li>
+        <li>Row scrolls horizontally</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

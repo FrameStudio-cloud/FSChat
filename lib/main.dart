@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'core/providers/theme_provider.dart';
+import 'core/providers/settings_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/chat/screens/chat_screen.dart';
@@ -11,6 +12,12 @@ import 'features/settings/screens/settings_screen.dart';
 import 'features/blog/providers/blog_provider.dart';
 import 'features/blog/screens/blog_post_screen.dart';
 import 'features/blog/screens/blog_editor_screen.dart';
+import 'features/habits/presentation/screens/habits_list_screen.dart';
+import 'features/mood/screens/mood_list_screen.dart';
+import 'features/mood/screens/mood_editor_screen.dart';
+import 'features/challenges/screens/challenges_list_screen.dart';
+import 'features/challenges/screens/challenge_detail_screen.dart';
+import 'features/reading_list/presentation/screens/reading_list_screen.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/isar_service.dart';
 import 'core/theme/app_theme.dart';
@@ -57,19 +64,23 @@ class _SplashAppState extends State<SplashApp> {
 
     final themeProvider = ThemeProvider();
     await themeProvider.loadPreference();
+    final settingsProvider = SettingsProvider();
+    await settingsProvider.loadPreferences();
 
     if (!mounted) return;
     setState(() {
       _initialized = true;
       _themeProvider = themeProvider;
+      _settingsProvider = settingsProvider;
     });
   }
 
   ThemeProvider? _themeProvider;
+  SettingsProvider? _settingsProvider;
 
   @override
   Widget build(BuildContext context) {
-    if (!_initialized || _themeProvider == null) {
+    if (!_initialized || _themeProvider == null || _settingsProvider == null) {
       return const _SplashScreen();
     }
     return MultiProvider(
@@ -77,6 +88,7 @@ class _SplashAppState extends State<SplashApp> {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => BlogProvider()),
         ChangeNotifierProvider.value(value: _themeProvider!),
+        ChangeNotifierProvider.value(value: _settingsProvider!),
       ],
       child: const MyApp(),
     );
@@ -140,54 +152,88 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, _) {
-        return MaterialApp(
-          navigatorKey: NotificationService.navigatorKey,
-          title: 'FSChat',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: themeProvider.themeMode,
-          onGenerateRoute: (settings) {
-            switch (settings.name) {
-              case '/chat':
-                return MaterialPageRoute(
-                  builder: (_) => const ChatScreen(),
-                  settings: settings,
-                );
-              case '/settings':
-                return MaterialPageRoute(
-                  builder: (_) => const SettingsScreen(),
-                  settings: settings,
-                );
-              case '/blog/post':
-                final args = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
-                  builder: (_) =>
-                      BlogPostScreen(postId: args['postId'] as String),
-                  settings: settings,
-                );
-              case '/blog/create':
-                return MaterialPageRoute(
-                  builder: (_) => const BlogEditorScreen(),
-                  settings: settings,
-                );
-              case '/create_group':
-                return MaterialPageRoute(
-                  builder: (_) => const CreateGroupScreen(),
-                  settings: settings,
-                );
-            }
-            return null;
-          },
-          home: Consumer<AuthProvider>(
-            builder: (context, auth, _) {
-              return auth.isSignedIn ? const HomeScreen() : const LoginScreen();
-            },
+    final themeProvider = context.watch<ThemeProvider>();
+    final settings = context.watch<SettingsProvider>();
+    final bubbleStyle = BubbleStyle.fromStyle(settings.bubbleStyle);
+    return MaterialApp(
+      navigatorKey: NotificationService.navigatorKey,
+      title: 'FSChat',
+      debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaleFactor: settings.textScaleFactor,
           ),
+          child: child!,
         );
       },
+      theme: AppTheme.light.copyWith(extensions: [bubbleStyle]),
+      darkTheme: AppTheme.dark.copyWith(extensions: [bubbleStyle]),
+      themeMode: themeProvider.themeMode,
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/chat':
+            return MaterialPageRoute(
+              builder: (_) => const ChatScreen(),
+              settings: settings,
+            );
+          case '/settings':
+            return MaterialPageRoute(
+              builder: (_) => const SettingsScreen(),
+              settings: settings,
+            );
+          case '/blog/post':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => BlogPostScreen(postId: args['postId'] as String),
+              settings: settings,
+            );
+          case '/blog/create':
+            return MaterialPageRoute(
+              builder: (_) => const BlogEditorScreen(),
+              settings: settings,
+            );
+          case '/habits':
+            return MaterialPageRoute(
+              builder: (_) => const HabitsListScreen(),
+              settings: settings,
+            );
+          case '/mood':
+            return MaterialPageRoute(
+              builder: (_) => const MoodListScreen(),
+              settings: settings,
+            );
+          case '/challenges':
+            return MaterialPageRoute(
+              builder: (_) => const ChallengesListScreen(),
+              settings: settings,
+            );
+          case '/challenge/detail':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => ChallengeDetailScreen(
+                challenge: args['challenge'],
+              ),
+              settings: settings,
+            );
+          case '/reading':
+            return MaterialPageRoute(
+              builder: (_) => const ReadingListScreen(),
+              settings: settings,
+            );
+          case '/create_group':
+            return MaterialPageRoute(
+              builder: (_) => const CreateGroupScreen(),
+              settings: settings,
+            );
+        }
+        return null;
+      },
+      home: Consumer<AuthProvider>(
+        builder: (context, auth, _) {
+          return auth.isSignedIn ? const HomeScreen() : const LoginScreen();
+        },
+      ),
     );
   }
 }

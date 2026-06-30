@@ -471,7 +471,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
             const SizedBox(height: 4),
             Row(
               children: colors.map((c) {
-                final isSelected = _penColor.value == c.value;
+                final isSelected = _penColor.toARGB32() == c.toARGB32();
                 return GestureDetector(
                   onTap: () => setState(() => _penColor = c),
                   child: Container(
@@ -573,7 +573,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   }
 
   Widget _bgOption(String label, Color? color) {
-    final isSelected = _textBgColor?.value == color?.value;
+    final isSelected = _textBgColor?.toARGB32() == color?.toARGB32();
     return GestureDetector(
       onTap: () => setState(() => _textBgColor = color),
       child: Container(
@@ -841,7 +841,7 @@ class _TextInputDialogState extends State<_TextInputDialog> {
   }
 
   Widget _option(String label, Color? color) {
-    final isSelected = _bgColor?.value == color?.value;
+    final isSelected = _bgColor?.toARGB32() == color?.toARGB32();
     return GestureDetector(
       onTap: () => setState(() => _bgColor = color),
       child: Container(

@@ -10,8 +10,16 @@ service cloud.firestore {
       return isAuthed() && request.auth.uid == userId;
     }
 
-    function isParticipant(chatId) {
-      return isAuthed() && chatId.contains(request.auth.uid);
+    function isChatParticipant(chatId) {
+      return isAuthed()
+        && get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+             .hasAny([request.auth.uid]);
+    }
+
+    function isHabitOwner(habitId) {
+      return isAuthed()
+        && get(/databases/$(database)/documents/habits/$(habitId)).data.userId
+             == request.auth.uid;
     }
 
     // ── Users ──
@@ -24,20 +32,25 @@ service cloud.firestore {
 
     // ── Chats ──
     match /chats/{chatId} {
-      allow read: if isAuthed() && chatId.contains(request.auth.uid);
-      allow create: if isAuthed() && chatId.contains(request.auth.uid);
-      allow update: if isAuthed() && chatId.contains(request.auth.uid);
-      allow delete: if isAuthed() && chatId.contains(request.auth.uid);
+      allow read: if isAuthed()
+        && resource.data.participants.hasAny([request.auth.uid]);
+      allow create: if isAuthed()
+        && request.resource.data.participants.hasAny([request.auth.uid]);
+      allow update: if isAuthed()
+        && resource.data.participants.hasAny([request.auth.uid]);
+      allow delete: if isAuthed()
+        && resource.data.participants.hasAny([request.auth.uid]);
 
       match /messages/{messageId} {
-        allow read: if isAuthed() && chatId.contains(request.auth.uid);
-        allow create: if isAuthed() && chatId.contains(request.auth.uid);
-        allow update: if isAuthed() && chatId.contains(request.auth.uid);
-        allow delete: if isAuthed() && chatId.contains(request.auth.uid);
+        allow read: if isChatParticipant(chatId);
+        allow create: if isChatParticipant(chatId);
+        allow update: if isChatParticipant(chatId);
+        allow delete: if isChatParticipant(chatId)
+          && resource.data.senderId == request.auth.uid;
       }
 
       match /typing/{uid} {
-        allow read: if isAuthed() && chatId.contains(request.auth.uid);
+        allow read: if isChatParticipant(chatId);
         allow write: if isOwner(uid);
       }
     }
@@ -64,10 +77,10 @@ service cloud.firestore {
 
     // ── Mood Tracker ──
     match /moods/{docId} {
-      allow read: if isAuthed() && docId.contains(request.auth.uid);
-      allow create: if isAuthed() && docId.contains(request.auth.uid);
-      allow update: if isAuthed() && docId.contains(request.auth.uid);
-      allow delete: if isAuthed() && docId.contains(request.auth.uid);
+      allow read: if isAuthed() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthed() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthed() && resource.data.userId == request.auth.uid;
     }
 
     // ── Habits ──
@@ -78,22 +91,32 @@ service cloud.firestore {
       allow delete: if isAuthed() && resource.data.userId == request.auth.uid;
     }
 
-    match /habitLogs/{logId} {
-      allow read: if isAuthed();
-      allow create: if isAuthed();
-      allow update: if isAuthed();
-      allow delete: if isAuthed();
+    // ── Habit Logs (subordinated to parent habit owner) ──
+    match /habit_logs/{logId} {
+      allow read: if isAuthed() && isHabitOwner(resource.data.habitId);
+      allow create: if isAuthed() && isHabitOwner(request.resource.data.habitId);
+      allow update: if isAuthed() && isHabitOwner(resource.data.habitId);
+      allow delete: if isAuthed() && isHabitOwner(resource.data.habitId);
     }
 
     // ── Challenges ──
     match /challenges/{challengeId} {
-      allow read: if isAuthed();
+      allow read: if isAuthed()
+        && resource.data.participants.hasAny([request.auth.uid]);
       allow create: if isAuthed();
-      allow update: if isAuthed();
-      allow delete: if isAuthed();
+      allow update: if isAuthed() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isAuthed() && resource.data.createdBy == request.auth.uid;
     }
 
-    // ── Reading List ──
+    // ── Challenge Progress ──
+    match /challenge_progress/{docId} {
+      allow read: if isAuthed() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthed() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthed() && resource.data.userId == request.auth.uid;
+    }
+
+    // ── Reading List (reserved for future use — stored locally via Isar) ──
     match /readingList/{itemId} {
       allow read: if isAuthed() && resource.data.userId == request.auth.uid;
       allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;

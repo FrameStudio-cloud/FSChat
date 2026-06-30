@@ -5,6 +5,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/message_model.dart';
@@ -1289,6 +1291,8 @@ class _SeenIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showReceipts = context.read<SettingsProvider>().readReceipts;
+    if (!showReceipts) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Icon(
       message.seenBy.length > 1 ? Icons.done_all : Icons.done,

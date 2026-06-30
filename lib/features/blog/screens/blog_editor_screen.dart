@@ -129,7 +129,7 @@ class _BlogEditorScreenState extends State<BlogEditorScreen> {
             ),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              value: _selectedType,
+              initialValue: _selectedType,
               decoration: InputDecoration(
                 labelText: 'Type',
                 filled: true,

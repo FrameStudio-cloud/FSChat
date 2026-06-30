@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:isar/isar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../data/datasources/book_local_source.dart';
 import '../../data/models/book_model.dart';
 import '../../domain/book_notifier.dart';
@@ -20,11 +20,41 @@ class _ReadingListScreenState extends State<ReadingListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   BookNotifier? _notifier;
+  bool _readingReminderEnabled = false;
+  int _readingReminderHour = 20;
+  int _readingReminderMinute = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _loadReadingReminderPrefs();
+  }
+
+  Future<void> _loadReadingReminderPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _readingReminderEnabled =
+          prefs.getBool('reading_reminder_enabled') ?? false;
+      _readingReminderHour = prefs.getInt('reading_reminder_hour') ?? 20;
+      _readingReminderMinute = prefs.getInt('reading_reminder_minute') ?? 0;
+    });
+  }
+
+  Future<void> _saveReadingReminderPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('reading_reminder_enabled', _readingReminderEnabled);
+    await prefs.setInt('reading_reminder_hour', _readingReminderHour);
+    await prefs.setInt('reading_reminder_minute', _readingReminderMinute);
+
+    if (_readingReminderEnabled) {
+      await NotificationService.scheduleReadingReminder(
+        hour: _readingReminderHour,
+        minute: _readingReminderMinute,
+      );
+    } else {
+      await NotificationService.cancelReadingReminder();
+    }
   }
 
   @override
@@ -64,6 +94,16 @@ class _ReadingListScreenState extends State<ReadingListScreen>
           appBar: AppBar(
             title: const Text('Reading List'),
             centerTitle: false,
+            actions: [
+              IconButton(
+                icon: Icon(
+                  _readingReminderEnabled
+                      ? Icons.notifications_active_rounded
+                      : Icons.notifications_outlined,
+                ),
+                onPressed: _showReadingReminderSettings,
+              ),
+            ],
             bottom: TabBar(
               controller: _tabController,
               tabs: [
@@ -320,6 +360,80 @@ class _ReadingListScreenState extends State<ReadingListScreen>
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showReadingReminderSettings() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Daily Reading Reminder',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Text('Get reminded to read every day.',
+                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 16),
+              SwitchListTile(
+                title: const Text('Enable reminder'),
+                value: _readingReminderEnabled,
+                onChanged: (val) {
+                  setSheetState(() {
+                    _readingReminderEnabled = val;
+                  });
+                },
+              ),
+              if (_readingReminderEnabled) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                        context: ctx,
+                        initialTime: TimeOfDay(
+                          hour: _readingReminderHour,
+                          minute: _readingReminderMinute,
+                        ),
+                      );
+                      if (time != null) {
+                        setSheetState(() {
+                          _readingReminderHour = time.hour;
+                          _readingReminderMinute = time.minute;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.access_time_rounded),
+                    label: Text(
+                      '${_readingReminderHour.toString().padLeft(2, '0')}:${_readingReminderMinute.toString().padLeft(2, '0')}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    _saveReadingReminderPrefs();
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Save'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

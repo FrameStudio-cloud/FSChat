@@ -5,19 +5,27 @@ import '../../data/models/habit_model.dart';
 class HabitTile extends StatelessWidget {
   final Habit habit;
   final bool isLoggedToday;
+  final double todayCount;
   final int streak;
   final VoidCallback onToggle;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
   final VoidCallback onSkip;
   final VoidCallback onTap;
+  final VoidCallback onArchive;
 
   const HabitTile({
     super.key,
     required this.habit,
     required this.isLoggedToday,
+    this.todayCount = 0,
     required this.streak,
     required this.onToggle,
+    this.onIncrement,
+    this.onDecrement,
     required this.onSkip,
     required this.onTap,
+    required this.onArchive,
   });
 
   @override
@@ -27,11 +35,23 @@ class HabitTile extends StatelessWidget {
     final habitColor =
         Color(int.parse(habit.colorHex.replaceFirst('#', '0xFF')));
 
-    return Card(
+    final isQuantifiable = habit.habitType == 'quantifiable';
+    final showCount = isQuantifiable && isLoggedToday;
+    final targetStr = isQuantifiable
+        ? '${todayCount.toInt()}/${habit.targetCount.toInt()} ${habit.unit}'
+        : null;
+
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      elevation: 0,
-      color: colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isLoggedToday
+              ? habitColor.withAlpha(60)
+              : colorScheme.surfaceContainerHighest,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
@@ -40,6 +60,7 @@ class HabitTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
+              // Check circle
               GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -65,15 +86,17 @@ class HabitTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
+              // Color bar
               Container(
                 width: 4,
-                height: 32,
+                height: 36,
                 margin: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
                   color: habitColor.withAlpha(180),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
+              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,10 +104,13 @@ class HabitTile extends StatelessWidget {
                     Text(
                       habit.name,
                       style: theme.textTheme.bodyLarge
-                          ?.copyWith(fontWeight: FontWeight.w500),
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     Text(
-                      habit.frequency == 'daily' ? 'Daily' : habit.frequency,
+                      targetStr ??
+                          (habit.frequency == 'daily'
+                              ? 'Daily'
+                              : habit.frequency),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -92,6 +118,22 @@ class HabitTile extends StatelessWidget {
                   ],
                 ),
               ),
+              // Quantifiable +/- buttons
+              if (isQuantifiable) ...[
+                _MiniButton(
+                  icon: Icons.remove,
+                  onTap: onDecrement,
+                  color: habitColor,
+                ),
+                const SizedBox(width: 4),
+                _MiniButton(
+                  icon: Icons.add,
+                  onTap: onIncrement,
+                  color: habitColor,
+                ),
+                const SizedBox(width: 8),
+              ],
+              // Streak badge
               if (streak > 0)
                 Container(
                   padding:
@@ -135,26 +177,26 @@ class HabitTile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.skip_next),
-              title: const Text('Skip today'),
+            _MenuTile(
+              icon: Icons.skip_next,
+              label: 'Skip today',
               onTap: () {
                 HapticFeedback.mediumImpact();
                 Navigator.pop(ctx);
                 onSkip();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Edit'),
+            _MenuTile(
+              icon: Icons.edit,
+              label: 'Edit',
               onTap: () {
                 Navigator.pop(ctx);
                 onTap();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.archive_outlined),
-              title: const Text('Archive'),
+            _MenuTile(
+              icon: Icons.archive_outlined,
+              label: 'Archive',
               onTap: () {
                 Navigator.pop(ctx);
                 _confirmArchive(context);
@@ -179,12 +221,54 @@ class HabitTile extends StatelessWidget {
             onPressed: () {
               Navigator.pop(ctx);
               HapticFeedback.mediumImpact();
-              onSkip(); // temp — will be replaced with archive
+              onArchive();
             },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Archive'),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MiniButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final Color color;
+  const _MiniButton(
+      {required this.icon, required this.onTap, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: color.withAlpha(25),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 16, color: color),
+      ),
+    );
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _MenuTile(
+      {required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      onTap: onTap,
     );
   }
 }

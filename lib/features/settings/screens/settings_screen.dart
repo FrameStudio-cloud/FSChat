@@ -3,11 +3,13 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/database_service.dart';
 import '../../../shared/utils/avatar_helper.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/models/user_model.dart';
 import 'about_screen.dart';
+import 'blocked_users_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -105,7 +107,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showWallpaperPicker() {
     final theme = context.read<ThemeProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
@@ -370,7 +371,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     VoidCallback? onTap,
     Color? iconColor,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileIconColor = iconColor ?? AppColors.brand;
     return ListTile(
       leading: Icon(icon, color: tileIconColor),
@@ -417,22 +417,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _settingsTile(
               icon: Icons.volume_up_outlined,
               title: 'Message sound',
-              subtitle: 'Coming soon',
-              onTap: () => _comingSoon(),
+              subtitle: context.watch<SettingsProvider>().notificationSound ==
+                      'default'
+                  ? 'Default'
+                  : context.watch<SettingsProvider>().notificationSound,
+              onTap: _showSoundPicker,
             ),
             _buildDivider(),
-            _settingsTile(
+            _buildSettingsSwitch(
               icon: Icons.vibration_outlined,
               title: 'Vibrate',
-              subtitle: 'Coming soon',
-              onTap: () => _comingSoon(),
+              value: context.watch<SettingsProvider>().notificationVibrate,
+              onChanged: (v) =>
+                  context.read<SettingsProvider>().setNotificationVibrate(v),
             ),
             _buildDivider(),
-            _settingsTile(
+            _buildSettingsSwitch(
               icon: Icons.notifications_outlined,
               title: 'Message preview',
-              subtitle: 'Coming soon',
-              onTap: () => _comingSoon(),
+              value: context.watch<SettingsProvider>().messagePreview,
+              onChanged: (v) =>
+                  context.read<SettingsProvider>().setMessagePreview(v),
             ),
           ]),
           _sectionHeader('CHATS'),
@@ -440,31 +445,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _settingsTile(
               icon: Icons.chat_bubble_outline_rounded,
               title: 'Bubble style',
-              subtitle: 'Coming soon',
-              onTap: () => _comingSoon(),
+              subtitle: _bubbleStyleLabel(
+                  context.watch<SettingsProvider>().bubbleStyle),
+              onTap: _showBubbleStylePicker,
             ),
             _buildDivider(),
             _settingsTile(
               icon: Icons.text_fields_rounded,
               title: 'Font size',
-              subtitle: 'Coming soon',
-              onTap: () => _comingSoon(),
+              subtitle:
+                  _fontSizeLabel(context.watch<SettingsProvider>().fontSize),
+              onTap: _showFontSizePicker,
             ),
           ]),
           _sectionHeader('PRIVACY'),
           _settingsCard([
-            _settingsTile(
+            _buildSettingsSwitch(
               icon: Icons.done_all_rounded,
               title: 'Read receipts',
-              subtitle: 'Coming soon',
-              onTap: () => _comingSoon(),
+              value: context.watch<SettingsProvider>().readReceipts,
+              onChanged: (v) =>
+                  context.read<SettingsProvider>().setReadReceipts(v),
             ),
             _buildDivider(),
             _settingsTile(
               icon: Icons.block_rounded,
               title: 'Blocked users',
-              subtitle: 'Coming soon',
-              onTap: () => _comingSoon(),
+              subtitle: null,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
+              ),
             ),
           ]),
           _sectionHeader('ACCOUNT'),
@@ -498,11 +509,172 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Divider(height: 1, indent: 56, color: Colors.grey[200]);
   }
 
-  void _comingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Coming soon'),
-        behavior: SnackBarBehavior.floating,
+  Widget _buildSettingsSwitch({
+    required IconData icon,
+    required String title,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return SwitchListTile(
+      secondary: Icon(icon, color: AppColors.brand),
+      title: Text(title, style: const TextStyle(fontSize: 15)),
+      value: value,
+      onChanged: onChanged,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+    );
+  }
+
+  String _bubbleStyleLabel(String style) {
+    switch (style) {
+      case 'square':
+        return 'Square';
+      case 'compact':
+        return 'Compact';
+      default:
+        return 'Rounded';
+    }
+  }
+
+  String _fontSizeLabel(String size) {
+    switch (size) {
+      case 'small':
+        return 'Small';
+      case 'large':
+        return 'Large';
+      default:
+        return 'Medium';
+    }
+  }
+
+  void _showSoundPicker() {
+    final settings = context.read<SettingsProvider>();
+    final current = settings.notificationSound;
+    final sounds = ['default', 'chime', 'pop', 'gentle'];
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Message sound'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: sounds.map((s) {
+            final label = s == 'default'
+                ? 'Default'
+                : s[0].toUpperCase() + s.substring(1);
+            return RadioListTile<String>(
+              title: Text(label),
+              value: s,
+              groupValue: current,
+              onChanged: (v) {
+                if (v != null) {
+                  settings.setNotificationSound(v);
+                  Navigator.pop(ctx);
+                }
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showBubbleStylePicker() {
+    final settings = context.read<SettingsProvider>();
+    final current = settings.bubbleStyle;
+    final styles = ['rounded', 'square', 'compact'];
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bubble style'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: styles.map((s) {
+            return RadioListTile<String>(
+              title: Text(_bubbleStyleLabel(s)),
+              subtitle: _bubbleStylePreview(s),
+              value: s,
+              groupValue: current,
+              onChanged: (v) {
+                if (v != null) {
+                  settings.setBubbleStyle(v);
+                  Navigator.pop(ctx);
+                }
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _bubbleStylePreview(String style) {
+    double radius;
+    switch (style) {
+      case 'square':
+        radius = 4;
+        break;
+      case 'compact':
+        radius = 10;
+        break;
+      default:
+        radius = 18;
+    }
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 20,
+          decoration: BoxDecoration(
+            color: AppColors.brand.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(radius),
+              topRight: Radius.circular(radius > 6 ? 6 : 4),
+              bottomLeft: Radius.circular(radius),
+              bottomRight: Radius.circular(radius > 6 ? 6 : 4),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          width: 40,
+          height: 20,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(radius > 6 ? 6 : 4),
+              topRight: Radius.circular(radius),
+              bottomLeft: Radius.circular(radius > 6 ? 6 : 4),
+              bottomRight: Radius.circular(radius),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showFontSizePicker() {
+    final settings = context.read<SettingsProvider>();
+    final current = settings.fontSize;
+    final sizes = ['small', 'medium', 'large'];
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Font size'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: sizes.map((s) {
+            return RadioListTile<String>(
+              title: Text(_fontSizeLabel(s)),
+              value: s,
+              groupValue: current,
+              onChanged: (v) {
+                if (v != null) {
+                  settings.setFontSize(v);
+                  Navigator.pop(ctx);
+                }
+              },
+            );
+          }).toList(),
+        ),
       ),
     );
   }

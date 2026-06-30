@@ -20,6 +20,13 @@ class Habit {
   @Index()
   late DateTime createdAt;
   bool archived = false;
+  bool reminderEnabled = false;
+  int reminderHour = 9;
+  int reminderMinute = 0;
+  String category = 'General';
+  String habitType = 'boolean';
+  double targetCount = 1;
+  String unit = '';
 
   Habit copyWith({
     String? name,
@@ -29,6 +36,13 @@ class Habit {
     int? currentStreak,
     int? longestStreak,
     bool? archived,
+    bool? reminderEnabled,
+    int? reminderHour,
+    int? reminderMinute,
+    String? category,
+    String? habitType,
+    double? targetCount,
+    String? unit,
   }) =>
       Habit()
         ..id = id
@@ -41,5 +55,12 @@ class Habit {
         ..currentStreak = currentStreak ?? this.currentStreak
         ..longestStreak = longestStreak ?? this.longestStreak
         ..createdAt = createdAt
-        ..archived = archived ?? this.archived;
+        ..archived = archived ?? this.archived
+        ..reminderEnabled = reminderEnabled ?? this.reminderEnabled
+        ..reminderHour = reminderHour ?? this.reminderHour
+        ..reminderMinute = reminderMinute ?? this.reminderMinute
+        ..category = category ?? this.category
+        ..habitType = habitType ?? this.habitType
+        ..targetCount = targetCount ?? this.targetCount
+        ..unit = unit ?? this.unit;
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/services/tip_service.dart';
 import '../../../core/theme/app_colors.dart';
 
@@ -71,8 +72,20 @@ class AboutScreen extends StatelessWidget {
         Text('Version $_version',
             style: TextStyle(color: Colors.grey[500], fontSize: 13)),
         const SizedBox(height: 2),
-        Text('by Frames Studio',
-            style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+        GestureDetector(
+          onTap: () {
+            Clipboard.setData(
+                const ClipboardData(text: 'https://framestudio.co.ke'));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('framestudio.co.ke copied'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          child: Text('by Frames Studio',
+              style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+        ),
       ],
     );
   }
@@ -310,6 +323,7 @@ class AboutScreen extends StatelessWidget {
       child: Column(
         children: [
           _infoRow('Developer', 'Frames Studio', theme),
+          _infoRow('Website', 'framestudio.co.ke', theme),
           _infoRow('Platform', 'Android', theme),
           _infoRow('Framework', 'Flutter', theme),
         ],

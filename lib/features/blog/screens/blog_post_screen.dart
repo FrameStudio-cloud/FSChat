@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../../../core/services/database_service.dart';
 import '../../../shared/utils/avatar_helper.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../auth/models/user_model.dart';
 import '../models/post_model.dart';
 import '../widgets/comment_section.dart';
 import '../providers/blog_provider.dart';

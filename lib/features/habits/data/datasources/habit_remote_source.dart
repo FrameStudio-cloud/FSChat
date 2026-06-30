@@ -38,6 +38,13 @@ class HabitRemoteSource {
       'longestStreak': habit.longestStreak,
       'createdAt': habit.createdAt,
       'archived': habit.archived,
+      'reminderEnabled': habit.reminderEnabled,
+      'reminderHour': habit.reminderHour,
+      'reminderMinute': habit.reminderMinute,
+      'category': habit.category,
+      'habitType': habit.habitType,
+      'targetCount': habit.targetCount,
+      'unit': habit.unit,
     });
   }
 
@@ -70,6 +77,7 @@ class HabitRemoteSource {
       'status': log.status,
       'note': log.note,
       'progress': log.progress,
+      'count': log.count,
       'createdAt': log.createdAt,
     });
   }
@@ -89,7 +97,14 @@ class HabitRemoteSource {
       ..currentStreak = data['currentStreak'] as int? ?? 0
       ..longestStreak = data['longestStreak'] as int? ?? 0
       ..createdAt = (data['createdAt'] as dynamic)?.toDate() ?? DateTime.now()
-      ..archived = data['archived'] as bool? ?? false;
+      ..archived = data['archived'] as bool? ?? false
+      ..reminderEnabled = data['reminderEnabled'] as bool? ?? false
+      ..reminderHour = data['reminderHour'] as int? ?? 9
+      ..reminderMinute = data['reminderMinute'] as int? ?? 0
+      ..category = data['category'] as String? ?? 'General'
+      ..habitType = data['habitType'] as String? ?? 'boolean'
+      ..targetCount = (data['targetCount'] as num?)?.toDouble() ?? 1
+      ..unit = data['unit'] as String? ?? '';
     return habit;
   }
 
@@ -101,6 +116,7 @@ class HabitRemoteSource {
       ..status = data['status'] as String? ?? 'completed'
       ..note = data['note'] as String? ?? ''
       ..progress = (data['progress'] as num?)?.toDouble() ?? 0.0
+      ..count = (data['count'] as num?)?.toDouble() ?? 0.0
       ..createdAt = (data['createdAt'] as dynamic)?.toDate() ?? DateTime.now();
     return log;
   }

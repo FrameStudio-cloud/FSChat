@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../../core/services/database_service.dart';
 import '../../../shared/utils/avatar_helper.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../auth/models/user_model.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});

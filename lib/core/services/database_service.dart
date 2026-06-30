@@ -472,6 +472,33 @@ class DatabaseService {
     });
   }
 
+  Future<void> unblockUser(String uid, String blockedUid) async {
+    await _users.doc(uid).update({
+      'blockedUsers': FieldValue.arrayRemove([blockedUid]),
+    });
+  }
+
+  Stream<List<String>> blockedUserIdsStream(String uid) {
+    return _users.doc(uid).snapshots().map((snap) {
+      final data = snap.data() as Map<String, dynamic>?;
+      if (data == null) return <String>[];
+      return List<String>.from(data['blockedUsers'] as List? ?? []);
+    });
+  }
+
+  Future<List<ChatUser>> getBlockedUsers(String uid) async {
+    final userSnap = await _users.doc(uid).get();
+    final data = userSnap.data() as Map<String, dynamic>?;
+    if (data == null) return [];
+    final blockedIds = List<String>.from(data['blockedUsers'] as List? ?? []);
+    if (blockedIds.isEmpty) return [];
+    final userDocs =
+        await _users.where(FieldPath.documentId, whereIn: blockedIds).get();
+    return userDocs.docs
+        .map((d) => ChatUser.fromMap(d.data() as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<void> setTyping(String chatId, String uid, bool isTyping) async {
     if (isTyping) {
       await _chats.doc(chatId).collection('typing').doc(uid).set({
@@ -605,6 +632,22 @@ class DatabaseService {
     await _moods.doc(moodId).delete();
   }
 
+  Future<MoodEntry?> getMoodForDate(String uid, DateTime date) async {
+    final dayKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final docId = '${uid}_$dayKey';
+    final doc = await _moods.doc(docId).get();
+    if (!doc.exists) return null;
+    return MoodEntry.fromMap(doc.data() as Map<String, dynamic>);
+  }
+
+  Future<void> deleteMoodByDate(String uid, DateTime date) async {
+    final dayKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final docId = '${uid}_$dayKey';
+    await _moods.doc(docId).delete();
+  }
+
   CollectionReference get _challenges => _firestore.collection('challenges');
   CollectionReference get _challengeProgress =>
       _firestore.collection('challenge_progress');
@@ -623,9 +666,54 @@ class DatabaseService {
             .toList());
   }
 
+  Future<Challenge?> getChallenge(String challengeId) async {
+    final doc = await _challenges.doc(challengeId).get();
+    if (!doc.exists) return null;
+    return Challenge.fromMap(doc.data() as Map<String, dynamic>);
+  }
+
   Future<void> updateChallenge(
       String challengeId, Map<String, dynamic> updates) async {
     await _challenges.doc(challengeId).update(updates);
+  }
+
+  Future<void> deleteChallenge(String challengeId) async {
+    await _challenges.doc(challengeId).update({'status': 'cancelled'});
+  }
+
+  Future<void> archiveChallenge(String challengeId) async {
+    await _challenges.doc(challengeId).update({'status': 'archived'});
+  }
+
+  Future<void> leaveChallenge(String challengeId, String uid) async {
+    await _challenges.doc(challengeId).update({
+      'participants': FieldValue.arrayRemove([uid]),
+    });
+  }
+
+  Stream<ChallengeProgress?> myProgressStream(
+      String challengeId, String userId) {
+    return _challengeProgress.doc('${challengeId}_$userId').snapshots().map(
+        (doc) => doc.exists
+            ? ChallengeProgress.fromMap(doc.data() as Map<String, dynamic>)
+            : null);
+  }
+
+  Future<ChallengeProgress?> getMyProgress(
+      String challengeId, String userId) async {
+    final doc = await _challengeProgress.doc('${challengeId}_$userId').get();
+    if (!doc.exists) return null;
+    return ChallengeProgress.fromMap(doc.data() as Map<String, dynamic>);
+  }
+
+  Stream<List<ChallengeProgress>> allMyProgressStream(String userId) {
+    return _challengeProgress
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) =>
+                ChallengeProgress.fromMap(d.data() as Map<String, dynamic>))
+            .toList());
   }
 
   Future<void> markDayComplete(
@@ -664,5 +752,37 @@ class DatabaseService {
         (doc) => doc.exists
             ? ChallengeProgress.fromMap(doc.data() as Map<String, dynamic>)
             : null);
+  }
+
+  // ── Widget bubbles helpers ──
+
+  CollectionReference get _habitLogs => _firestore.collection('habit_logs');
+
+  Future<int> getCompletedHabitsToday(DateTime date) async {
+    final dateString =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final snap =
+        await _habitLogs.where('dateString', isEqualTo: dateString).get();
+    return snap.docs
+        .where(
+            (d) => (d.data() as Map<String, dynamic>)['status'] == 'completed')
+        .length;
+  }
+
+  Future<int> getActiveChallengesCount(String uid) async {
+    final snap = await _challenges
+        .where('participants', arrayContains: uid)
+        .where('status', isEqualTo: 'active')
+        .get();
+    return snap.docs.length;
+  }
+
+  Future<int> countOnlineUsers(String uid) async {
+    final snap = await _firestore
+        .collection('users')
+        .where(FieldPath.documentId, isNotEqualTo: uid)
+        .where('online', isEqualTo: true)
+        .get();
+    return snap.docs.length;
   }
 }

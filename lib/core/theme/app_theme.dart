@@ -14,6 +14,48 @@ class BubbleStyle extends ThemeExtension<BubbleStyle> {
     required this.otherShadow,
   });
 
+  static BubbleStyle fromStyle(String style) {
+    double r;
+    double opposite;
+    switch (style) {
+      case 'square':
+        r = 4;
+        opposite = 4;
+        break;
+      case 'compact':
+        r = 10;
+        opposite = 8;
+        break;
+      default:
+        r = 18;
+        opposite = 6;
+    }
+    return BubbleStyle(
+      ownRadius: BorderRadius.only(
+        topLeft: Radius.circular(r),
+        topRight: Radius.circular(opposite),
+        bottomLeft: Radius.circular(r),
+        bottomRight: Radius.circular(opposite),
+      ),
+      otherRadius: BorderRadius.only(
+        topLeft: Radius.circular(opposite),
+        topRight: Radius.circular(r),
+        bottomLeft: Radius.circular(opposite),
+        bottomRight: Radius.circular(r),
+      ),
+      ownShadow: const BoxShadow(
+        color: Color(0x0E000000),
+        blurRadius: 2,
+        offset: Offset(0, 1),
+      ),
+      otherShadow: const BoxShadow(
+        color: Color(0x0A000000),
+        blurRadius: 2,
+        offset: Offset(0, 1),
+      ),
+    );
+  }
+
   @override
   ThemeExtension<BubbleStyle> copyWith({
     BorderRadiusGeometry? ownRadius,
