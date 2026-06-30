@@ -280,6 +280,11 @@ lib/
 - **Habit tile "Archive" actually archives**: archive confirmation dialog now fires `onArchive` instead of skip.
 - **Widget bubbles nesting fix**: `ChatListScreen` body wrapped in `Column` with `Expanded` around the existing `StreamBuilder`; `_WidgetBubbles` + `_BubbleChip` widgets added.
 - **DatabaseService helpers**: added `getCompletedHabitsToday()`, `getActiveChallengesCount()`, `countOnlineUsers()` for widget bubbles.
+- **Widget bubbles bottom overflow 9px**: `SizedBox` height 64→76, added `EdgeInsets.only(bottom: 80)` padding to Insights scroll views.
+- **FAB overlap with TabBar**: `floatingActionButton` wrapped in `Padding(bottom: 56)` in HabitsListScreen and MoodListScreen.
+- **Weekly trend graph overflow 20px**: bar chart `SizedBox` height 100→120.
+- **Mood editor date overflow**: added `VisualDensity.compact` to nav arrows + `TextOverflow.ellipsis`.
+- **Challenge permission denied**: Firestore rules for `challenge_progress` changed from `resource.data.userId == request.auth.uid` to `docId.split('_')[1] == request.auth.uid`. Deployed 2026-07-01.
 
 ## Common Issues & Fixes
 
