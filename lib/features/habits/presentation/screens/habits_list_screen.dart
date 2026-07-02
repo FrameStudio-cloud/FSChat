@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../data/repositories/habit_repository.dart';
 import '../../data/models/habit_model.dart';
@@ -35,7 +34,7 @@ class _HabitsListScreenState extends State<HabitsListScreen>
     super.didChangeDependencies();
     final uid = context.read<AuthProvider>().user?.uid;
     if (uid != null && _notifier == null) {
-      final repo = HabitNotifier(HabitRepository(FirebaseFirestore.instance));
+      final repo = HabitNotifier(HabitRepository());
       _notifier = repo;
       repo.init(uid);
     }

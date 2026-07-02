@@ -1,4 +1,4 @@
-# FSChat — Project Context (Updated 2026-07-02)
+# Kairos — Project Context (Updated 2026-07-02)
 
 ## Architecture overview
 - **Navigation**: BottomNavigationBar with 4 tabs (Chats, Journal, Tools, Contacts), managed by HomeScreen. Spring-animated with ScaleTransition on icon swap. Calls tab removed.
@@ -12,10 +12,10 @@
 - **Platforms**: Android (primary), iOS (configured)
 - **Auth**: Firebase Email/Password
 - **Database**: Cloud Firestore
-- **Storage**: Firebase Storage (images, audio, stickers)
+- **Storage**: Firebase Storage (images, stickers); speech audio saved locally
 - **State management**: Provider
 - **Push**: Firebase Cloud Messaging (FCM) + `flutter_local_notifications` (foreground/local fallback, scheduled reminders via `timezone` + `zonedSchedule`)
-- **Local storage**: path_provider + flutter_image_compress (wallpapers, stickers, cache)
+- **Local storage**: path_provider + flutter_image_compress (wallpapers, stickers, cache, speech audio); Isar (habits, reading list, speech sessions)
 - **Cloud Function**: Node.js 22 (2nd Gen) — 4 deployed functions: `sendMessageNotification`, `sendPostNotification`, `sendChallengeNotification`, `sendCommentNotification`
 
 ## Key packages
@@ -107,14 +107,14 @@ lib/
     providers/
       theme_provider.dart       — Dark/light mode + wallpaper (SharedPreferences + local file)
     services/
-      database_service.dart     — Firestore CRUD (users, chats, messages, media, block, clear, archive, uploadSticker, speech sessions) + widget bubble helpers (getCompletedHabitsToday, getActiveChallengesCount, countOnlineUsers)
+      database_service.dart     — Firestore CRUD (users, chats, messages, media, block, clear, archive, uploadSticker) + widget bubble helpers (getCompletedHabitsToday, getActiveChallengesCount, countOnlineUsers)
       notification_service.dart — FCM init + flutter_local_notifications, universal JSON payload routing,
                                   cold-start/debounce/navigator fallback, 8 scheduled notification methods
                                   (habit reminders, streak milestones, challenge deadline, mood check-in,
                                   mood pattern alert, reading reminder)
       local_storage_service.dart — App dirs, wallpaper save/remove, stickers save/list, cache
       tip_service.dart          — Tip of the day (snackbar on chat open — removed, now only in About page)
-      isar_service.dart         — Isar local database (reading list, habits)
+      isar_service.dart         — Isar local database (reading list, habits, speech sessions)
   features/
     auth/
       models/
@@ -180,13 +180,16 @@ lib/
       models/                   — ChallengeModel (elapsedProgress replaces old progress() stub), ChallengeProgress
       screens/                  — ChallengesListScreen (shows elapsed time progress), ChallengeDetailScreen (deadline reminder, day toggle), ChallengeEditorScreen
     speech/
-      models/
-        speech_session.dart     — SpeechSession (id, userId, title, audioUrl, duration, transcript, wordCount, fillerWordCount, pace, score, createdAt)
+      data/
+        models/
+          speech_session_model.dart — Isar SpeechSession (sessionId, userId, title, localAudioPath, duration, transcript, score, etc.)
+        datasources/
+          speech_local_source.dart  — Isar CRUD + reactive stream for speech sessions
       domain/
-        speech_notifier.dart    — SpeechNotifier (record, playback, state management, streak, stats, Firestore sync)
+        speech_notifier.dart    — SpeechNotifier (record, playback, state management, streak, stats, local Isar + file storage)
       screens/
-        speech_practice_screen.dart — Record/playback dashboard, live waveform, session history, progress chart
-      widgets/
+        speech_practice_screen.dart — Record/playback dashboard, live waveform, session history, progress chart, Groq analysis sheet
+      widgets/                  — (empty, widgets inlined in screen)
     tools/
       screens/                  — ToolsScreen (includes _SpeechCard with session count + "NEW" badge)
   shared/
@@ -231,7 +234,7 @@ lib/
 - **Mood check-in reminder**: daily at 20:00, toggled via bell icon in MoodListScreen; low mood pattern detection (3 consecutive lows) fires alert with 7-day cooldown
 - **Challenge deadline reminder**: one-shot notification 1 day before endDate, set on ChallengeDetailScreen init and cancelled on dispose
 - **Reading reminder**: daily at 19:00, toggled via bell icon in ReadingListScreen
-- **Speech Practice**: accessible from Tools tab → Practice card. Record speech via `record` package (AAC-LC .m4a), playback via `just_audio`. Sessions saved to Firestore `speech_sessions` collection, audio to Firebase Storage `speech/{sessionId}.m4a`. Dashboard shows streak, stats (total sessions, avg time, avg score), and scrollable history with play/pause per session. Progress screen shows score trend chart (custom paint), best/avg/total stats, and achievement chips. BackgroundMesh applied as dot-grid overlay.
+- **Speech Practice**: accessible from Tools tab → Practice card. Record speech via `record` package (AAC-LC .m4a), playback via `just_audio`. Audio saved locally to `{docDir}/fschat/speech/{sessionId}.m4a`, metadata stored in Isar (no Firebase dependency). Groq AI pipeline transcribes (Whisper) and analyzes (Llama) → word count, filler words, WPM pace, score (0-100), tips. Dashboard shows streak (unique days), stats (total sessions, avg time, avg score), scrollable history with play/pause per session. Progress screen shows score trend chart (custom paint), best/avg/total stats, and achievement chips. BackgroundMesh applied as dot-grid overlay.
 
 ## Stickers
 - **Built-in packs**: "Wave" (10 stickers) and "Reactions" (8 stickers) — each sticker has tags for keyword matching
@@ -264,7 +267,7 @@ lib/
 
 ## Known limitations
 - **Push notifications**: Huawei Push Kit not configured → no bg/lock-screen notifications on this phone. Foreground snackbars + local notification fallback.
-- **Speech Practice**: no AI transcription or analysis yet (Phase 1 = record + playback only)
+- **Speech Practice**: Groq API key hardcoded in `api_config.dart` — extractable from APK; should be moved to secure backend or Remote Config
 - **Reading list/Blog/Challenges/Tools**: some `DatabaseService` methods are still stubs — pre-existing LSP errors in those files
 - **Widget bubbles**: data for Journal, Reading, and Contacts sections uses static text rather than live DB queries (no backend exists for journal count, reading progress, etc.)
 - Release build needs signing key configured
@@ -297,6 +300,8 @@ lib/
 - **Weekly trend graph overflow 20px**: bar chart `SizedBox` height 100→120.
 - **Mood editor date overflow**: added `VisualDensity.compact` to nav arrows + `TextOverflow.ellipsis`.
 - **Challenge permission denied**: Firestore rules for `challenge_progress` changed from `resource.data.userId == request.auth.uid` to `docId.split('_')[1] == request.auth.uid`. Deployed 2026-07-01.
+- **Habit tap crashes with NaN/Infinity toInt**: `double.tryParse('Infinity')` returns `double.infinity`, `double.tryParse('NaN')` returns `double.nan` in habit editor target field. Saving persists corrupted value; later `.toInt()` calls crash on tile render or editor init. Fixed: validate parsed input with `.isFinite` + `>= 0` before storing; guard all `.toInt()` calls on `targetCount` and `todayCount` with `.isFinite` checks. `habit_editor_screen.dart:78,453-454`, `habit_tile.dart:41`.
+- **Speech practice moved to fully local storage**: Replaced Firebase Storage for audio files with local file storage (`{docDir}/fschat/speech/`), replaced Firestore session metadata with Isar local database. No network dependency. Streak calc fixed to use unique calendar days, `_buildEmptySession()` bug eliminated, session deletion added. `speech_notifier.dart`, `database_service.dart`, `local_storage_service.dart`, `isar_service.dart`, new `SpeechSession` Isar model + `SpeechLocalSource`.
 
 ## Common Issues & Fixes
 
@@ -319,10 +324,12 @@ lib/
 | **flutter_image_compress build fails** | Missing package | Run `flutter pub get` after adding `flutter_image_compress: ^2.4.0` to pubspec.yaml. |
 | **Architecture refactor breaks imports** | Build fails with `Error when reading '...'` | Files were copied but imports still use old relative paths. Fix each moved file's imports to point to new locations. Common offenders: `notification_service.dart`, `chat_screen.dart`, `settings_screen.dart`, `chat_tile.dart`. |
 | **`flutter analyze` crashes** | `PathNotFoundException: Directory listing failed, path = 'C:\tools\flutter\examples\*'` | Flutter 3.41.6 bug — missing `examples/` directory. Use `flutter build apk --debug` instead — it compiles all Dart and catches import/type errors. |
+| **Habit tap crashes with Infinity/NaN** | Tapping a habit tile shows "Unsupported operation: Infinity or NaN toInt" | `habit_editor_screen.dart:453`: validate `double.tryParse` result with `.isFinite` + `>= 0` before storing. Guard all `.toInt()` calls on `targetCount`/`todayCount` with `.isFinite`. |
 
 ## To revisit later
-- Speech Practice Phase 2: AI transcription (OpenAI Whisper / Google STT) + filler word analysis + pace scoring
-- Speech Practice Phase 3: fl_chart integration for better trend graphs
+- Speech Practice AI analysis is done (Groq Whisper + Llama), but API key is hardcoded — needs secure storage
+- Speech Practice: fl_chart integration for interactive trend graphs (currently CustomPainter)
+- Speech Practice: add daily practice reminder notification, home screen widget bubble
 - Huawei background notifications won't work without Google Play Services — can't fix without HMS
 - Once configured: rebuild APK, test push notifications on lock screen & background
 - Wire remaining `DatabaseService` stubs (reading/blog/challenges tools methods still have LSP errors)

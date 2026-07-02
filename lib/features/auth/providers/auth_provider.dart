@@ -115,7 +115,7 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
         name: name ?? 'User',
         photoUrl: user.photoURL ?? '',
         email: user.email ?? '',
-        bio: 'Hey there! I am using FSChat',
+        bio: 'Hey there! I am using Kairos',
         pushToken: pushToken,
       ));
     } else {
@@ -130,7 +130,7 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       if (existing.bio.isEmpty) {
         await _databaseService.updateBio(
-            user.uid, 'Hey there! I am using FSChat');
+            user.uid, 'Hey there! I am using Kairos');
       }
     }
   }

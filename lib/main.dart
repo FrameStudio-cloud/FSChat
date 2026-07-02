@@ -157,7 +157,7 @@ class _MyAppState extends State<MyApp> {
     final bubbleStyle = BubbleStyle.fromStyle(settings.bubbleStyle);
     return MaterialApp(
       navigatorKey: NotificationService.navigatorKey,
-      title: 'FSChat',
+      title: 'Kairos',
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(

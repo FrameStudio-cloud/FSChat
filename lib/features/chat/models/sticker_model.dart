@@ -8,7 +8,7 @@ class StickerPack {
   StickerPack({
     required this.id,
     required this.name,
-    this.author = 'FSChat',
+    this.author = 'Kairos',
     this.isBuiltIn = false,
     required this.stickers,
   });
@@ -23,7 +23,7 @@ class StickerPack {
   factory StickerPack.fromMap(Map<String, dynamic> map) => StickerPack(
         id: map['id'] ?? '',
         name: map['name'] ?? '',
-        author: map['author'] ?? 'FSChat',
+        author: map['author'] ?? 'Kairos',
         isBuiltIn: map['isBuiltIn'] ?? false,
         stickers: [],
       );

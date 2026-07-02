@@ -63,17 +63,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'FSChat',
+                  'Kairos',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Send and receive messages in real-time',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+                        color: Colors.grey[600],
+                      ),
                 ),
                 const SizedBox(height: 48),
                 if (_isRegister)
@@ -86,8 +86,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       prefixIcon: const Icon(Icons.person),
                     ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Enter your name' : null,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Enter your name'
+                        : null,
                   ),
                 if (_isRegister) const SizedBox(height: 16),
                 TextFormField(
@@ -100,8 +101,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     prefixIcon: const Icon(Icons.email),
                   ),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (v) =>
-                      v == null || !v.contains('@') ? 'Enter a valid email' : null,
+                  validator: (v) => v == null || !v.contains('@')
+                      ? 'Enter a valid email'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

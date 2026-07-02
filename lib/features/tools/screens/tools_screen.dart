@@ -191,7 +191,7 @@ class _HabitsCardState extends State<_HabitsCard> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (widget.uid != null && _notifier == null) {
-      final repo = HabitRepository(FirebaseFirestore.instance);
+      final repo = HabitRepository();
       _notifier = HabitNotifier(repo);
       _notifier!.init(widget.uid!);
     }

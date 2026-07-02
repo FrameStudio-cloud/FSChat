@@ -11,6 +11,7 @@ import '../../features/blog/models/comment_model.dart';
 import '../../features/mood/models/mood_entry.dart';
 import '../../features/challenges/models/challenge_model.dart';
 import '../../features/challenges/models/challenge_progress.dart';
+import '../../features/habits/data/datasources/habit_local_source.dart';
 
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -718,32 +719,23 @@ class DatabaseService {
 
   Future<void> markDayComplete(
       String challengeId, String userId, int dayIndex) async {
-    final docId = '${challengeId}_$userId';
-    final ref = _challengeProgress.doc(docId);
-    final doc = await ref.get();
-    if (doc.exists) {
-      await ref.update({
-        'completedDays': FieldValue.arrayUnion([dayIndex]),
-        'lastUpdated': DateTime.now(),
-      });
-    } else {
-      await ref.set({
-        'id': docId,
-        'challengeId': challengeId,
-        'userId': userId,
-        'completedDays': [dayIndex],
-        'lastUpdated': DateTime.now(),
-      });
-    }
+    final ref = _challengeProgress.doc('${challengeId}_$userId');
+    await ref.set({
+      'id': '${challengeId}_$userId',
+      'challengeId': challengeId,
+      'userId': userId,
+      'completedDays': FieldValue.arrayUnion([dayIndex]),
+      'lastUpdated': DateTime.now(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> markDayIncomplete(
       String challengeId, String userId, int dayIndex) async {
     final ref = _challengeProgress.doc('${challengeId}_$userId');
-    await ref.update({
+    await ref.set({
       'completedDays': FieldValue.arrayRemove([dayIndex]),
       'lastUpdated': DateTime.now(),
-    });
+    }, SetOptions(merge: true));
   }
 
   Stream<ChallengeProgress?> challengeProgressStream(
@@ -756,17 +748,12 @@ class DatabaseService {
 
   // ── Widget bubbles helpers ──
 
-  CollectionReference get _habitLogs => _firestore.collection('habit_logs');
-
   Future<int> getCompletedHabitsToday(DateTime date) async {
     final dateString =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    final snap =
-        await _habitLogs.where('dateString', isEqualTo: dateString).get();
-    return snap.docs
-        .where(
-            (d) => (d.data() as Map<String, dynamic>)['status'] == 'completed')
-        .length;
+    final source = HabitLocalSource();
+    final logs = await source.getLogsForDate(dateString);
+    return logs.where((l) => l.status == 'completed').length;
   }
 
   Future<int> getActiveChallengesCount(String uid) async {

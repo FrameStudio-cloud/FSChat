@@ -1,18 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../datasources/habit_local_source.dart';
-import '../datasources/habit_remote_source.dart';
 import '../models/habit_model.dart';
 import '../models/habit_log_model.dart';
 
 class HabitRepository {
   final HabitLocalSource _local;
-  final HabitRemoteSource _remote;
   final Uuid _uuid = Uuid();
 
-  HabitRepository(FirebaseFirestore firestore)
-      : _local = HabitLocalSource(),
-        _remote = HabitRemoteSource(firestore);
+  HabitRepository() : _local = HabitLocalSource();
 
   Stream<List<Habit>> watchHabits(String userId) => _local.watchHabits(userId);
 
@@ -53,7 +48,6 @@ class HabitRepository {
       ..targetCount = targetCount
       ..unit = unit;
     await _local.putHabit(habit);
-    await _remote.syncHabit(habit);
     return firestoreId;
   }
 
@@ -89,7 +83,6 @@ class HabitRepository {
       unit: unit,
     );
     await _local.putHabit(updated);
-    await _remote.syncHabit(updated);
   }
 
   Future<void> deleteHabit(String firestoreId) async {
@@ -98,7 +91,6 @@ class HabitRepository {
       await _local.deleteLogsForHabit(firestoreId);
       await _local.deleteHabit(existing.id);
     }
-    await _remote.deleteHabit(firestoreId);
   }
 
   Stream<List<HabitLog>> watchLogs(String habitFirestoreId) =>
@@ -114,9 +106,6 @@ class HabitRepository {
     final existing = await _local.getLog(habitFirestoreId, dateString);
     if (existing != null) {
       await _local.deleteLog(existing.id);
-      if (existing.firestoreId.isNotEmpty) {
-        await _remote.deleteLog(existing.firestoreId);
-      }
     }
     if (existing == null || count > 0) {
       final firestoreId = _uuid.v4();
@@ -128,7 +117,6 @@ class HabitRepository {
         ..count = count
         ..createdAt = DateTime.now();
       await _local.putLog(log);
-      await _remote.syncLog(log);
     }
     await _recalcStreak(habitFirestoreId);
   }
@@ -140,7 +128,6 @@ class HabitRepository {
       existing.count = count;
       existing.status = count > 0 ? 'completed' : 'skipped';
       await _local.putLog(existing);
-      await _remote.syncLog(existing);
     }
     await _recalcStreak(habitFirestoreId);
   }
@@ -152,9 +139,6 @@ class HabitRepository {
     final existing = await _local.getLog(habitFirestoreId, dateString);
     if (existing != null) {
       await _local.deleteLog(existing.id);
-      if (existing.firestoreId.isNotEmpty) {
-        await _remote.deleteLog(existing.firestoreId);
-      }
     }
     final firestoreId = _uuid.v4();
     final log = HabitLog()
@@ -164,7 +148,6 @@ class HabitRepository {
       ..status = 'skipped'
       ..createdAt = DateTime.now();
     await _local.putLog(log);
-    await _remote.syncLog(log);
     await _recalcStreak(habitFirestoreId);
   }
 
@@ -174,7 +157,6 @@ class HabitRepository {
     if (existing != null) {
       existing.note = note;
       await _local.putLog(existing);
-      await _remote.syncLog(existing);
     }
   }
 
@@ -183,7 +165,6 @@ class HabitRepository {
     if (log != null) {
       log.status = status;
       await _local.putLog(log);
-      await _remote.syncLog(log);
     }
   }
 
@@ -196,19 +177,6 @@ class HabitRepository {
   Future<Set<String>> getAllLoggedDateStrings(String userId) =>
       _local.getAllLoggedDateStrings(userId);
 
-  Future<void> seedFromRemote(String userId) async {
-    final existing = await _local.getAllHabits(userId);
-    if (existing.isNotEmpty) return;
-    final remoteHabits = await _remote.fetchAllHabits(userId);
-    for (final habit in remoteHabits) {
-      await _local.putHabit(habit);
-      final logs = await _remote.fetchLogsForHabit(habit.firestoreId);
-      for (final log in logs) {
-        await _local.putLog(log);
-      }
-    }
-  }
-
   Future<void> _recalcStreak(String habitFirestoreId) async {
     final streak = await _local.calculateStreak(habitFirestoreId);
     final habit = await _local.getByFirestoreId(habitFirestoreId);
@@ -218,7 +186,6 @@ class HabitRepository {
       habit.currentStreak = streak;
       habit.longestStreak = longest;
       await _local.putHabit(habit);
-      await _remote.syncHabit(habit);
     }
   }
 

@@ -247,7 +247,7 @@ class NotificationService {
     String payload, {
     String? senderName,
   }) async {
-    final android = await _androidDetails(_channelChat, 'FSChat Messages');
+    final android = await _androidDetails(_channelChat, 'Kairos Messages');
     final prefs = await SharedPreferences.getInstance();
     final showPreview = prefs.getBool('messagePreview') ?? true;
     final displayBody = showPreview || senderName == null
@@ -369,7 +369,7 @@ class NotificationService {
     }
 
     final android =
-        await _androidDetails(_channelReminders, 'FSChat Reminders');
+        await _androidDetails(_channelReminders, 'Kairos Reminders');
     await _localNotifications?.zonedSchedule(
       id.hashCode,
       title,
@@ -486,7 +486,7 @@ class NotificationService {
     });
 
     final android =
-        await _androidDetails(_channelReminders, 'FSChat Reminders');
+        await _androidDetails(_channelReminders, 'Kairos Reminders');
     await _localNotifications?.zonedSchedule(
       id.hashCode,
       'Challenge Ending Soon',
@@ -516,7 +516,7 @@ class NotificationService {
       'type': 'habit',
       'route': '/habits',
     });
-    final android = await _androidDetails(_channelAlerts, 'FSChat Alerts');
+    final android = await _androidDetails(_channelAlerts, 'Kairos Alerts');
     await _localNotifications?.show(
       milestoneKey.hashCode,
       '🔥 $streak-day Streak!',
@@ -534,7 +534,7 @@ class NotificationService {
       'route': '/mood',
       'date': DateTime.now().toIso8601String().substring(0, 10),
     });
-    final android = await _androidDetails(_channelAlerts, 'FSChat Alerts');
+    final android = await _androidDetails(_channelAlerts, 'Kairos Alerts');
     await _localNotifications?.show(
       'mood_pattern_alert'.hashCode,
       'We noticed you\'ve been feeling down',

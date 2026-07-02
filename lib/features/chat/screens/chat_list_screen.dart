@@ -33,7 +33,7 @@ class ChatListScreen extends StatelessWidget {
                 ],
               ),
             if (chatUser != null) const SizedBox(width: 10),
-            const Text('FSChat'),
+            const Text('Kairos'),
           ],
         ),
         actions: [

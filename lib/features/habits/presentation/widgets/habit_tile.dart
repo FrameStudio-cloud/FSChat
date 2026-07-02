@@ -38,7 +38,7 @@ class HabitTile extends StatelessWidget {
     final isQuantifiable = habit.habitType == 'quantifiable';
     final showCount = isQuantifiable && isLoggedToday;
     final targetStr = isQuantifiable
-        ? '${todayCount.toInt()}/${habit.targetCount.toInt()} ${habit.unit}'
+        ? '${todayCount.isFinite ? todayCount.toInt() : 0}/${habit.targetCount.isFinite ? habit.targetCount.toInt() : 1} ${habit.unit}'
         : null;
 
     return Container(

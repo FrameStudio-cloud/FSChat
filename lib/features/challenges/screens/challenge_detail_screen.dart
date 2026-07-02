@@ -149,13 +149,16 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                         style: theme.textTheme.titleSmall
                             ?.copyWith(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
-                    ...List.generate(widget.challenge.tasks.length, (i) {
+                    ...List.generate(widget.challenge.totalDays(), (i) {
                       final dayIndex = i;
                       final isCompleted =
                           _myProgress?.completedDays.contains(dayIndex) ??
                               false;
                       final isLoading = _loadingDays.contains(dayIndex);
-                      final task = widget.challenge.tasks[i];
+                      final task = widget.challenge.tasks.isEmpty
+                          ? 'Complete the task'
+                          : widget.challenge
+                              .tasks[i % widget.challenge.tasks.length];
                       return _TaskCard(
                         dayIndex: dayIndex,
                         task: task,

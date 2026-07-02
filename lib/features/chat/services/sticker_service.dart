@@ -73,7 +73,7 @@ class StickerService {
       StickerPack(
         id: 'wave',
         name: 'Wave',
-        author: 'FSChat',
+        author: 'Kairos',
         isBuiltIn: true,
         stickers: [
           Sticker(id: 'wave_01', packId: 'wave', tags: ['hi', 'hello', 'hey']),
@@ -92,7 +92,7 @@ class StickerService {
       StickerPack(
         id: 'reactions',
         name: 'Reactions',
-        author: 'FSChat',
+        author: 'Kairos',
         isBuiltIn: true,
         stickers: [
           Sticker(

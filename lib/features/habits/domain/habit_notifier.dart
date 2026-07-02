@@ -70,8 +70,6 @@ class HabitNotifier extends ChangeNotifier {
     _loading = true;
     notifyListeners();
 
-    await _repository.seedFromRemote(userId);
-
     _habitSub = _repository.watchHabits(userId).listen((habits) {
       _habits = habits;
       _loading = false;

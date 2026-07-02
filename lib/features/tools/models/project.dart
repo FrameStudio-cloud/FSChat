@@ -55,6 +55,33 @@ final myProjects = [
     ],
   ),
   const Project(
+    id: 'keel',
+    title: 'Keel',
+    subtitle: 'Multi-tenant shop dashboard',
+    description:
+        'A mobile-friendly dashboard for small retail businesses — inventory, sales logging, social media scheduling, website management, WhatsApp/Telegram bots, and business settings. Built with React 19, Vite, Supabase.',
+    icon: Icons.store_rounded,
+    color: Color(0xFFEF6C00),
+    webUrl: 'https://keel.framestudio.co.ke',
+    githubUrl: 'https://github.com/FrameStudio-cloud/keel',
+    installationSteps: [
+      'Open keel.framestudio.co.ke in any browser.',
+      'Create a shop during onboarding.',
+      'Start adding products, logging sales, and managing your store.',
+      'No installation needed — works on any device.',
+    ],
+    features: [
+      'Dashboard KPIs — daily sales, top products, low stock alerts',
+      'Inventory management with stock adjust & history',
+      'Sales logging with auto-stock deduction & receipts',
+      'Social media post scheduler (Instagram, TikTok)',
+      'Website catalogue, banners, business info & gallery',
+      'WhatsApp & Telegram bot management',
+      'Multi-shop support with one account',
+      'Dark mode & full data export',
+    ],
+  ),
+  const Project(
     id: 'call_app',
     title: 'Web Calling App',
     subtitle: 'Browser-based voice & video',

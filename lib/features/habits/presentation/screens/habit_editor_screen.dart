@@ -73,9 +73,11 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
       _reminderEnabled = h.reminderEnabled;
       _reminderHour = h.reminderHour;
       _reminderMinute = h.reminderMinute;
-      _selectedCategory = h.category;
+      _selectedCategory =
+          _categoryOptions.contains(h.category) ? h.category : 'General';
       _habitType = h.habitType;
-      _targetController.text = h.targetCount.toInt().toString();
+      _targetController.text =
+          h.targetCount.isFinite ? h.targetCount.toInt().toString() : '1';
       _unitController.text = h.unit;
     }
   }
@@ -450,7 +452,8 @@ class _HabitEditorScreenState extends State<HabitEditorScreen> {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
-    final target = double.tryParse(_targetController.text.trim()) ?? 1;
+    final raw = double.tryParse(_targetController.text.trim()) ?? 1.0;
+    final target = (raw.isFinite && raw >= 0) ? raw : 1.0;
 
     setState(() => _isSubmitting = true);
     try {
