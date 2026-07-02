@@ -2,20 +2,23 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:uuid/uuid.dart';
-import '../../../core/services/database_service.dart';
 import '../../../core/services/groq_service.dart';
-import '../models/speech_session.dart';
+import '../../../core/services/local_storage_service.dart';
+import '../data/datasources/speech_local_source.dart';
+import '../data/models/speech_session_model.dart';
 
 enum RecordingState { idle, recording, processing, done }
 
 class SpeechNotifier extends ChangeNotifier {
-  final DatabaseService _db = DatabaseService();
+  final SpeechLocalSource _localSource = SpeechLocalSource();
   final AudioRecorder _recorder = AudioRecorder();
   final GroqService _groq = GroqService();
   final Uuid _uuid = Uuid();
+  LocalStorageService? _storage;
 
   String? _userId;
   List<SpeechSession> _sessions = [];
@@ -58,13 +61,25 @@ class SpeechNotifier extends ChangeNotifier {
 
   int get currentStreak {
     if (_sessions.isEmpty) return 0;
+    final uniqueDays = _sessions
+        .map((s) =>
+            DateTime(s.createdAt.year, s.createdAt.month, s.createdAt.day))
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    if (uniqueDays.isEmpty) return 0;
+
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    if (uniqueDays.first.isBefore(todayDate)) return 0;
+
     int streak = 0;
-    final now = DateTime.now();
-    for (int i = 0; i < _sessions.length; i++) {
-      final diff = now.difference(_sessions[i].createdAt).inDays;
-      if (diff == i) {
+    for (int i = 0; i < uniqueDays.length; i++) {
+      final expected = todayDate.subtract(Duration(days: i));
+      if (uniqueDays[i] == expected) {
         streak++;
-      } else if (diff > i) {
+      } else {
         break;
       }
     }
@@ -78,9 +93,10 @@ class SpeechNotifier extends ChangeNotifier {
 
   Future<void> init(String userId) async {
     _userId = userId;
+    _storage = await LocalStorageService.getInstance();
     _loading = true;
     notifyListeners();
-    _sessionsSub = _db.speechSessionsStream(userId).listen(
+    _sessionsSub = _localSource.watchSessions(userId).listen(
       (sessions) {
         _sessions = sessions;
         _loading = false;
@@ -94,7 +110,7 @@ class SpeechNotifier extends ChangeNotifier {
   }
 
   Future<void> startRecording() async {
-    if (_userId == null) return;
+    if (_userId == null || _recordingState == RecordingState.recording) return;
     _lastError = null;
     _lastAnalysis = null;
     final hasPermission = await _recorder.hasPermission();
@@ -119,10 +135,8 @@ class SpeechNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<SpeechSession> stopRecording({String title = ''}) async {
-    if (_recordingState != RecordingState.recording) {
-      return _buildEmptySession();
-    }
+  Future<SpeechSession?> stopRecording({String title = ''}) async {
+    if (_recordingState != RecordingState.recording) return null;
 
     _recordingState = RecordingState.processing;
     _timer?.cancel();
@@ -141,41 +155,38 @@ class SpeechNotifier extends ChangeNotifier {
     if (filePath == null || duration < 1) {
       _recordingState = RecordingState.idle;
       notifyListeners();
-      return _buildEmptySession();
+      return null;
     }
 
     final sessionId = _uuid.v4();
     final titleText =
         title.isNotEmpty ? title : 'Practice ${DateFormat('MMM d, HH:mm')}';
 
-    var session = SpeechSession(
-      id: sessionId,
-      userId: _userId!,
-      title: titleText,
-      duration: duration,
-      createdAt: DateTime.now(),
-    );
-
-    await _db.saveSpeechSession(session);
+    final session = SpeechSession()
+      ..sessionId = sessionId
+      ..userId = _userId!
+      ..title = titleText
+      ..duration = duration
+      ..createdAt = DateTime.now();
 
     GroqAnalysis? analysis;
     try {
-      final audioUrl = await _db.uploadSpeechAudio(sessionId, filePath);
+      final localPath = await _storage!.saveSpeechAudio(sessionId, filePath);
+
       analysis = await _groq.transcribeAndAnalyze(filePath, duration);
       _lastAnalysis = analysis;
 
-      session = session.copyWith(
-        audioUrl: audioUrl,
-        transcript: analysis.transcript,
-        wordCount: analysis.wordCount,
-        fillerWordCount: analysis.fillerWordCount,
-        pace: analysis.pace,
-        score: analysis.score,
-      );
-      await _db.saveSpeechSession(session);
+      session.localAudioPath = localPath;
+      session.transcript = analysis.transcript;
+      session.wordCount = analysis.wordCount;
+      session.fillerWordCount = analysis.fillerWordCount;
+      session.pace = analysis.pace;
+      session.score = analysis.score;
     } catch (e) {
       _lastError = e.toString();
     }
+
+    await _localSource.putSession(session);
 
     try {
       File(filePath).delete();
@@ -186,16 +197,15 @@ class SpeechNotifier extends ChangeNotifier {
     return session;
   }
 
+  Future<void> deleteSession(Id id, String sessionId) async {
+    await _storage?.deleteSpeechAudio(sessionId);
+    await _localSource.deleteSession(id);
+  }
+
   void dismissAnalysis() {
     _lastAnalysis = null;
     notifyListeners();
   }
-
-  SpeechSession _buildEmptySession() => SpeechSession(
-        id: '',
-        userId: _userId ?? '',
-        createdAt: DateTime.now(),
-      );
 
   @override
   void dispose() {

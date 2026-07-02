@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../features/habits/data/models/habit_model.dart';
 import '../../features/habits/data/models/habit_log_model.dart';
 import '../../features/reading_list/data/models/book_model.dart';
+import '../../features/speech/data/models/speech_session_model.dart';
 
 class IsarService {
   static Isar? _instance;
@@ -18,7 +19,7 @@ class IsarService {
     if (_instance != null) return;
     final dir = await getApplicationDocumentsDirectory();
     _instance = await Isar.open(
-      [HabitSchema, HabitLogSchema, BookSchema],
+      [HabitSchema, HabitLogSchema, BookSchema, SpeechSessionSchema],
       directory: dir.path,
     );
   }

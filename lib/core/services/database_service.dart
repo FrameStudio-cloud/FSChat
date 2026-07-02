@@ -11,7 +11,6 @@ import '../../features/blog/models/comment_model.dart';
 import '../../features/mood/models/mood_entry.dart';
 import '../../features/challenges/models/challenge_model.dart';
 import '../../features/challenges/models/challenge_progress.dart';
-import '../../features/speech/models/speech_session.dart';
 
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -753,39 +752,6 @@ class DatabaseService {
         (doc) => doc.exists
             ? ChallengeProgress.fromMap(doc.data() as Map<String, dynamic>)
             : null);
-  }
-
-  // ── Speech Practice ──
-
-  CollectionReference get _speechSessions =>
-      _firestore.collection('speech_sessions');
-
-  Future<String> uploadSpeechAudio(String sessionId, String filePath) async {
-    final ref = _storage.ref().child('speech/$sessionId.m4a');
-    await ref.putFile(File(filePath));
-    return await ref.getDownloadURL();
-  }
-
-  Future<void> saveSpeechSession(SpeechSession session) async {
-    await _speechSessions.doc(session.id).set(session.toMap());
-  }
-
-  Future<void> updateSpeechSession(
-      String id, Map<String, dynamic> updates) async {
-    await _speechSessions.doc(id).update(updates);
-  }
-
-  Stream<List<SpeechSession>> speechSessionsStream(String userId) {
-    return _speechSessions
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snap) {
-      final list = snap.docs
-          .map((d) => SpeechSession.fromMap(d.data() as Map<String, dynamic>))
-          .toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
   }
 
   // ── Widget bubbles helpers ──

@@ -22,6 +22,7 @@ class LocalStorageService {
     await Directory('$_appDir/wallpapers').create(recursive: true);
     await Directory('$_appDir/cache').create(recursive: true);
     await Directory('$_appDir/stickers').create(recursive: true);
+    await Directory('$_appDir/speech').create(recursive: true);
   }
 
   String get stickersDir => '$_appDir/stickers';
@@ -90,6 +91,19 @@ class LocalStorageService {
 
   Future<bool> hasWallpaperImage() async {
     return await File(wallpaperPath).exists();
+  }
+
+  String get speechDir => '$_appDir/speech';
+
+  Future<String> saveSpeechAudio(String sessionId, String sourcePath) async {
+    final target = '$speechDir/$sessionId.m4a';
+    await File(sourcePath).copy(target);
+    return target;
+  }
+
+  Future<void> deleteSpeechAudio(String sessionId) async {
+    final file = File('$speechDir/$sessionId.m4a');
+    if (await file.exists()) await file.delete();
   }
 
   Future<File?> getCachedProfilePhoto(String uid) async {

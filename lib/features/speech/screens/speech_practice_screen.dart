@@ -3,13 +3,12 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
-import '../../../core/services/database_service.dart';
 import '../../../core/services/groq_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/background_mesh.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../data/models/speech_session_model.dart';
 import '../domain/speech_notifier.dart';
-import '../models/speech_session.dart';
 
 class SpeechPracticeScreen extends StatefulWidget {
   const SpeechPracticeScreen({super.key});
@@ -21,7 +20,6 @@ class SpeechPracticeScreen extends StatefulWidget {
 class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
   final _titleController = TextEditingController();
   final _audioPlayer = AudioPlayer();
-  final _db = DatabaseService();
   SpeechNotifier? _notifier;
   SpeechSession? _selectedSession;
   int _playingSessionIndex = -1;
@@ -56,10 +54,11 @@ class _SpeechPracticeScreenState extends State<SpeechPracticeScreen> {
   }
 
   void _playSession(SpeechSession session, int index) {
-    if (session.audioUrl == null) return;
+    final path = session.localAudioPath;
+    if (path == null) return;
     _selectedSession = session;
     _playingSessionIndex = index;
-    _audioPlayer.setUrl(session.audioUrl!);
+    _audioPlayer.setFilePath(path);
     _audioPlayer.play();
     _positionSub?.cancel();
     _positionSub = _audioPlayer.positionStream.listen((p) {
