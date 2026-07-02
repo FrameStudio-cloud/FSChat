@@ -17,18 +17,20 @@ class PostCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (post.coverImage != null)
               CachedNetworkImage(
                 imageUrl: post.coverImage!,
-                height: 180,
+                height: 160,
                 width: double.infinity,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => const SizedBox.shrink(),
@@ -40,15 +42,23 @@ class PostCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        post.typeIcon,
-                        style: const TextStyle(fontSize: 16),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(post.typeIcon,
+                              style: const TextStyle(fontSize: 14)),
+                        ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           post.title,
-                          style: theme.textTheme.titleMedium?.copyWith(
+                          style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                           maxLines: 2,
@@ -57,7 +67,7 @@ class PostCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       avatarWidget(
@@ -66,13 +76,15 @@ class PostCard extends StatelessWidget {
                         name: post.authorName,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        post.authorName,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                      Expanded(
+                        child: Text(
+                          post.authorName,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
                       Text(
                         DateFormat('MMM d').format(post.createdAt),
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -84,7 +96,7 @@ class PostCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     post.excerpt,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                       height: 1.4,
                     ),

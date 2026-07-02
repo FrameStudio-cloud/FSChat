@@ -199,15 +199,16 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: colorScheme.primary.withAlpha(25),
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: colorScheme.primary
+                                          .withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: Text(
-                                      tag,
+                                      '# $tag',
                                       style:
                                           theme.textTheme.labelSmall?.copyWith(
                                         color: colorScheme.primary,
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ))

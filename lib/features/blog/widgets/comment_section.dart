@@ -64,11 +64,13 @@ class _CommentSectionState extends State<CommentSection> {
             final comments = snapshot.data ?? [];
             if (comments.isEmpty) {
               return Padding(
-                padding: const EdgeInsets.all(16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                 child: Text(
                   'No comments yet. Be the first to share your thoughts.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               );

@@ -10,6 +10,8 @@ import '../../reading_list/data/datasources/book_local_source.dart';
 import '../../reading_list/domain/book_notifier.dart';
 import '../../../core/services/database_service.dart';
 import '../models/project.dart';
+import '../../speech/domain/speech_notifier.dart';
+import '../../speech/screens/speech_practice_screen.dart';
 import 'project_detail_screen.dart';
 
 class ToolsScreen extends StatefulWidget {
@@ -60,6 +62,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
               _MoodCard(uid: _uid, db: _db),
               _ChallengesCard(uid: _uid, db: _db),
               _ReadingCard(uid: _uid),
+              _SpeechCard(uid: _uid),
             ],
           ),
           const SizedBox(height: 28),
@@ -475,6 +478,114 @@ class _ProjectCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SpeechCard extends StatefulWidget {
+  final String? uid;
+  const _SpeechCard({this.uid});
+
+  @override
+  State<_SpeechCard> createState() => _SpeechCardState();
+}
+
+class _SpeechCardState extends State<_SpeechCard> {
+  SpeechNotifier? _notifier;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_notifier == null && widget.uid != null) {
+      _notifier = SpeechNotifier();
+      _notifier!.init(widget.uid!);
+    }
+  }
+
+  @override
+  void dispose() {
+    _notifier?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return ListenableBuilder(
+      listenable: _notifier!,
+      builder: (context, _) {
+        final n = _notifier!;
+        final sessions = n.loading ? 0 : n.totalSessions;
+
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const SpeechPracticeScreen(),
+            ),
+          ),
+          child: Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLow,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65100).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.record_voice_over_rounded,
+                        color: Color(0xFFE65100), size: 24),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    n.loading ? '...' : '$sessions',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFE65100),
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Practice',
+                    style: TextStyle(
+                        color: Color(0xFFE65100),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.center,
+                  ),
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65100).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('NEW',
+                        style: TextStyle(
+                            color: Color(0xFFE65100),
+                            fontSize: 7,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

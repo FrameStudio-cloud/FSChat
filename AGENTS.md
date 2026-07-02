@@ -1,4 +1,4 @@
-# FSChat — Project Context (Updated 2026-07-01)
+# FSChat — Project Context (Updated 2026-07-02)
 
 ## Architecture overview
 - **Navigation**: BottomNavigationBar with 4 tabs (Chats, Journal, Tools, Contacts), managed by HomeScreen. Spring-animated with ScaleTransition on icon swap. Calls tab removed.
@@ -107,7 +107,7 @@ lib/
     providers/
       theme_provider.dart       — Dark/light mode + wallpaper (SharedPreferences + local file)
     services/
-      database_service.dart     — Firestore CRUD (users, chats, messages, media, block, clear, archive, uploadSticker) + widget bubble helpers (getCompletedHabitsToday, getActiveChallengesCount, countOnlineUsers)
+      database_service.dart     — Firestore CRUD (users, chats, messages, media, block, clear, archive, uploadSticker, speech sessions) + widget bubble helpers (getCompletedHabitsToday, getActiveChallengesCount, countOnlineUsers)
       notification_service.dart — FCM init + flutter_local_notifications, universal JSON payload routing,
                                   cold-start/debounce/navigator fallback, 8 scheduled notification methods
                                   (habit reminders, streak milestones, challenge deadline, mood check-in,
@@ -179,9 +179,19 @@ lib/
     challenges/
       models/                   — ChallengeModel (elapsedProgress replaces old progress() stub), ChallengeProgress
       screens/                  — ChallengesListScreen (shows elapsed time progress), ChallengeDetailScreen (deadline reminder, day toggle), ChallengeEditorScreen
+    speech/
+      models/
+        speech_session.dart     — SpeechSession (id, userId, title, audioUrl, duration, transcript, wordCount, fillerWordCount, pace, score, createdAt)
+      domain/
+        speech_notifier.dart    — SpeechNotifier (record, playback, state management, streak, stats, Firestore sync)
+      screens/
+        speech_practice_screen.dart — Record/playback dashboard, live waveform, session history, progress chart
+      widgets/
     tools/
-      screens/                  — ToolsScreen
+      screens/                  — ToolsScreen (includes _SpeechCard with session count + "NEW" badge)
   shared/
+    widgets/
+      background_mesh.dart      — Subtle dot-grid mesh background overlay for dark theme screens
     models/
       menu_action.dart          — Reusable MenuAction model for context menus
     utils/
@@ -221,6 +231,7 @@ lib/
 - **Mood check-in reminder**: daily at 20:00, toggled via bell icon in MoodListScreen; low mood pattern detection (3 consecutive lows) fires alert with 7-day cooldown
 - **Challenge deadline reminder**: one-shot notification 1 day before endDate, set on ChallengeDetailScreen init and cancelled on dispose
 - **Reading reminder**: daily at 19:00, toggled via bell icon in ReadingListScreen
+- **Speech Practice**: accessible from Tools tab → Practice card. Record speech via `record` package (AAC-LC .m4a), playback via `just_audio`. Sessions saved to Firestore `speech_sessions` collection, audio to Firebase Storage `speech/{sessionId}.m4a`. Dashboard shows streak, stats (total sessions, avg time, avg score), and scrollable history with play/pause per session. Progress screen shows score trend chart (custom paint), best/avg/total stats, and achievement chips. BackgroundMesh applied as dot-grid overlay.
 
 ## Stickers
 - **Built-in packs**: "Wave" (10 stickers) and "Reactions" (8 stickers) — each sticker has tags for keyword matching
@@ -253,6 +264,7 @@ lib/
 
 ## Known limitations
 - **Push notifications**: Huawei Push Kit not configured → no bg/lock-screen notifications on this phone. Foreground snackbars + local notification fallback.
+- **Speech Practice**: no AI transcription or analysis yet (Phase 1 = record + playback only)
 - **Reading list/Blog/Challenges/Tools**: some `DatabaseService` methods are still stubs — pre-existing LSP errors in those files
 - **Widget bubbles**: data for Journal, Reading, and Contacts sections uses static text rather than live DB queries (no backend exists for journal count, reading progress, etc.)
 - Release build needs signing key configured
@@ -309,6 +321,8 @@ lib/
 | **`flutter analyze` crashes** | `PathNotFoundException: Directory listing failed, path = 'C:\tools\flutter\examples\*'` | Flutter 3.41.6 bug — missing `examples/` directory. Use `flutter build apk --debug` instead — it compiles all Dart and catches import/type errors. |
 
 ## To revisit later
+- Speech Practice Phase 2: AI transcription (OpenAI Whisper / Google STT) + filler word analysis + pace scoring
+- Speech Practice Phase 3: fl_chart integration for better trend graphs
 - Huawei background notifications won't work without Google Play Services — can't fix without HMS
 - Once configured: rebuild APK, test push notifications on lock screen & background
 - Wire remaining `DatabaseService` stubs (reading/blog/challenges tools methods still have LSP errors)

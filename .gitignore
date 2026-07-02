@@ -38,3 +38,14 @@ service_account.json
 
 # Flutter logs
 flutter_*.log
+
+# API keys
+lib/core/config/api_config.dart
+
+# Playwright MCP logs
+.playwright-mcp/
+
+# Design mockups
+*.preview.html
+mockup.html
+speech_mockup.html
